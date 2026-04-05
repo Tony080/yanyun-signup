@@ -38,7 +38,9 @@ export default async function handler(req, res) {
     var user = interaction.member ? interaction.member.user : interaction.user;
     var userId = 'dc_' + user.id;
     var displayName = interaction.member ? (interaction.member.nick || user.global_name || user.username) : (user.global_name || user.username);
+    var interactionToken = interaction.token;
 
+    // 先处理完所有逻辑，再返回结果（Vercel 在 res 发送后会终止函数）
     try {
       var result;
       switch (name) {
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
       return res.json({ type: 4, data: result });
     } catch (e) {
       console.error('[discord]', name, e);
-      return res.json({ type: 4, data: { content: '出错了: ' + e.message, flags: 64 } });
+      return res.json({ type: 4, data: { content: '出错了: ' + e.message } });
     }
   }
 
@@ -108,7 +110,6 @@ async function handleJoin(userId, displayName, opts) {
   var hour = parseInt(opts['时段']);
   var role = opts['职业'] || '输出';
 
-  // 确保用户存在
   await callLogin(userId, displayName);
 
   var res = await callApi('join', {
@@ -160,10 +161,10 @@ async function handleBoard() {
 
 async function handleRename(userId, opts) {
   var nickname = (opts['名字'] || '').trim().slice(0, 12);
-  if (!nickname) return { content: '❌ 请输入名字', flags: 64 };
+  if (!nickname) return { content: '❌ 请输入名字' };
 
   await callApi('updateNickname', { userId: userId, nickname: nickname });
-  return { content: '✅ 已改名为 **' + nickname + '**', flags: 64 };
+  return { content: '✅ 已改名为 **' + nickname + '**' };
 }
 
 // ===== 看板 Embed =====
@@ -176,7 +177,6 @@ async function buildBoardEmbed(weekDate) {
   var title = '🏯 燕云十六声 · 百业十人本';
   var description = '📅 美西 ' + (+pp[1]) + '月' + (+pp[2]) + '日 周日';
 
-  // 按小时分组
   var byHour = {};
   var totalPeople = 0;
   slots.forEach(function(s) {
