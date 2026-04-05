@@ -65,10 +65,10 @@ exports.main = async (event, context) => {
       continue;
     }
 
-    // 寻找有空位的车
+    // 寻找 count 最大的非满车（优先填满车，与 quickJoin 一致）
     var cars = await db.collection('slots')
       .where({ weekDate: weekDate, hour: hour, full: _.neq(true) })
-      .orderBy('carIndex', 'asc')
+      .orderBy('count', 'desc')
       .limit(1)
       .get();
 

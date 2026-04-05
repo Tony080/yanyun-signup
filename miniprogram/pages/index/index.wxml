@@ -17,6 +17,16 @@
     </view>
   </view>
 
+  <!-- 入口按钮（未报名时显示） -->
+  <view class="entry-buttons" wx:if="{{!myRegistration && !loading}}">
+    <view class="entry-btn quick-join-btn" bindtap="openSignupModal" data-mode="quick">
+      ⚡ 快速加入
+    </view>
+    <view class="entry-btn create-team-btn" bindtap="openSignupModal" data-mode="create">
+      🚗 创建车队
+    </view>
+  </view>
+
   <!-- 我的报名状态 -->
   <view class="my-status" wx:if="{{myRegistration}}">
     <view class="status-top">
@@ -28,7 +38,7 @@
     </view>
   </view>
 
-  <!-- 每周自动（独立显示，不依赖当前是否报名） -->
+  <!-- 每周自动 -->
   <view class="recurring-bar {{isRecurring ? 'recurring-on' : 'recurring-off'}}">
     <view class="recurring-toggle" bindtap="toggleRecurring">
       <view class="toggle-dot {{isRecurring ? 'toggle-on' : ''}}">
@@ -62,15 +72,18 @@
           </text>
         </view>
         <view class="slot-actions">
-          <view class="action-btn join-btn" bindtap="handleJoin"
+          <!-- Per-slot join button (when not registered) -->
+          <view class="action-btn join-btn" bindtap="handleSlotJoin"
                 data-hour="{{slot.pdtHour}}" wx:if="{{!myRegistration && !actionLoading}}">
-            报名
+            加入
           </view>
+          <!-- Move button (when registered in different slot) -->
           <view class="action-btn move-btn" bindtap="handleMove"
                 data-hour="{{slot.pdtHour}}"
                 wx:if="{{myRegistration && myRegistration.hour !== slot.pdtHour && !actionLoading}}">
             挪到这里
           </view>
+          <!-- Current badge -->
           <view class="current-badge"
                 wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour}}">
             当前
@@ -83,7 +96,7 @@
           <view class="car-card {{car.full ? 'car-full' : ''}}"
                 wx:for="{{slotsMap[slot.pdtHour].cars}}" wx:key="carIndex" wx:for-item="car">
             <view class="car-top">
-              <text class="car-name">第{{car.carIndex + 1}}车</text>
+              <text class="car-name">第{{car.carIndex + 1}}车{{car.leader ? ' 👑' + car.leader : ''}}</text>
               <text class="car-count">{{car.count}}/10</text>
             </view>
             <view class="car-bar">
@@ -91,10 +104,28 @@
                     style="width: {{car.count * 10}}%"></view>
             </view>
             <view class="members">
-              <view class="member {{item.openid === openid ? 'member-me' : ''}} {{item.role === '霖霖' ? 'role-linlin' : 'role-output'}}"
-                    wx:for="{{car.members}}" wx:key="openid">
-                {{item.nickname}}
-              </view>
+              <!-- Leader first -->
+              <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
+                <view class="member-wrap" wx:if="{{member.isLeader}}">
+                  <view class="member member-leader {{member.openid === openid ? 'member-me-leader' : ''}} {{member.role === '霖霖' ? 'role-linlin-leader' : 'role-output-leader'}}">
+                    👑 {{member.nickname}}
+                  </view>
+                </view>
+              </block>
+              <!-- Regular + proxy members -->
+              <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
+                <view class="member-wrap" wx:if="{{!member.isLeader}}">
+                  <view class="member {{member.openid === openid ? 'member-me' : ''}} {{member.role === '霖霖' ? 'role-linlin' : 'role-output'}} {{member.registeredBy ? 'member-proxy' : ''}}">
+                    {{member.nickname}}{{member.registeredBy ? '*' : ''}}
+                    <text class="proxy-remove"
+                          wx:if="{{member.registeredBy === openid}}"
+                          catchtap="handleRemoveProxy"
+                          data-member-openid="{{member.openid}}"
+                          data-member-nickname="{{member.nickname}}"
+                          data-slot-id="{{car._id}}">×</text>
+                  </view>
+                </view>
+              </block>
             </view>
           </view>
         </block>
@@ -109,5 +140,87 @@
   <view class="footer">
     <text class="footer-text">每周自动刷新 | 每人每周限报一个时段 | 10人满开新车</text>
     <text class="footer-text">时间已自动转换为你的本地时区</text>
+  </view>
+
+  <!-- ===== 报名弹窗 ===== -->
+  <view class="modal-overlay" wx:if="{{showSignupModal}}" bindtap="closeSignupModal">
+    <view class="modal-card" catchtap="preventBubble">
+      <!-- Modal title -->
+      <view class="modal-title">
+        <text wx:if="{{signupMode === 'quick'}}">⚡ 快速加入</text>
+        <text wx:if="{{signupMode === 'create'}}">🚗 创建车队</text>
+      </view>
+
+      <!-- Time picker -->
+      <view class="modal-row">
+        <text class="modal-label">时段</text>
+        <picker mode="selector" range="{{timePickerOptions}}" range-key="label"
+                value="{{timePickerIndex}}" bindchange="onTimePickerChange">
+          <view class="modal-picker">
+            {{timePickerOptions[timePickerIndex].label}}
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- Role selection -->
+      <view class="modal-row">
+        <text class="modal-label">职业</text>
+        <view class="role-buttons">
+          <view class="role-btn {{signupRole === '输出' ? 'role-btn-output-active' : 'role-btn-output'}}"
+                bindtap="selectRole" data-role="输出">
+            🔵 输出
+          </view>
+          <view class="role-btn {{signupRole === '霖霖' ? 'role-btn-linlin-active' : 'role-btn-linlin'}}"
+                bindtap="selectRole" data-role="霖霖">
+            🟢 霖霖
+          </view>
+        </view>
+      </view>
+
+      <!-- Recurring checkbox -->
+      <view class="modal-row recurring-check" bindtap="toggleSignupRecurring">
+        <view class="checkbox-box {{signupRecurring ? 'checkbox-checked' : ''}}">
+          <text wx:if="{{signupRecurring}}">✓</text>
+        </view>
+        <text class="recurring-check-label">每周自动</text>
+      </view>
+
+      <!-- Proxy signup section -->
+      <view class="modal-section">
+        <text class="modal-section-title">帮别人报名（可选）</text>
+
+        <!-- Existing proxy tags -->
+        <view class="extra-tags" wx:if="{{signupExtras.length > 0}}">
+          <view class="extra-tag {{item.role === '霖霖' ? 'extra-tag-linlin' : 'extra-tag-output'}}"
+                wx:for="{{signupExtras}}" wx:key="index">
+            <text>{{item.nickname}}</text>
+            <text class="extra-role-icon">{{item.role === '霖霖' ? '🟢' : '🔵'}}</text>
+            <text class="extra-remove" catchtap="removeExtra" data-idx="{{index}}">×</text>
+          </view>
+        </view>
+
+        <!-- Add proxy input row -->
+        <view class="extra-input-row">
+          <input class="extra-name-input" value="{{extraNameInput}}"
+                 bindinput="onExtraNameInput" placeholder="名字" maxlength="12" />
+          <view class="extra-role-toggle">
+            <view class="extra-role-opt {{extraRoleInput === '输出' ? 'extra-role-active-output' : ''}}"
+                  bindtap="selectExtraRole" data-role="输出">🔵</view>
+            <view class="extra-role-opt {{extraRoleInput === '霖霖' ? 'extra-role-active-linlin' : ''}}"
+                  bindtap="selectExtraRole" data-role="霖霖">🟢</view>
+          </view>
+          <view class="extra-add-btn" bindtap="addExtra">+ 添加</view>
+        </view>
+      </view>
+
+      <!-- Action buttons -->
+      <view class="modal-actions">
+        <view class="modal-cancel-btn" bindtap="closeSignupModal">取消</view>
+        <view class="modal-confirm-btn {{actionLoading ? 'btn-disabled' : ''}}" bindtap="submitSignup">
+          {{signupMode === 'quick' ? '加入' : '创建车队'}}
+        </view>
+      </view>
+    </view>
   </view>
 </view>

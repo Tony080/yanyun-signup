@@ -13,11 +13,26 @@ Page({
     pdtLabel: '',
     timeSlots: [],
     slotsMap: {},
-    myRegistration: null, // { hour, carIndex, slotId, localDisplay }
-    isRecurring: false,   // 当前用户是否开启了每周自动
-    recurringHour: null,  // 自动报名的PDT小时
+    myRegistration: null,
+    isRecurring: false,
+    recurringHour: null,
+    recurringLocalDisplay: '',
     loading: true,
-    actionLoading: false
+    actionLoading: false,
+
+    // Signup modal state
+    showSignupModal: false,
+    signupMode: '',        // 'quick' or 'create'
+    signupHour: null,      // null = 随缘 (only for quick mode)
+    signupRole: '输出',
+    signupRecurring: false,
+    signupExtras: [],      // [{nickname, role}]
+    extraNameInput: '',
+    extraRoleInput: '输出',
+
+    // Time picker
+    timePickerOptions: [],
+    timePickerIndex: 0
   },
 
   onLoad: function () {
@@ -37,7 +52,6 @@ Page({
       var recurringHour = res.result.recurringHour;
       var weekDate = getCurrentSunday();
 
-      // 构建本地化时间段
       var timeSlots = SLOT_HOURS_PDT.map(function (pdtHour) {
         var local = pdtToLocal(weekDate, pdtHour);
         return {
@@ -83,6 +97,26 @@ Page({
 
   getLocalDisplay: function (pdtHour) {
     return pdtToLocal(this.data.weekDate, pdtHour).display;
+  },
+
+  // Build picker options based on current slotsMap + mode
+  buildTimePickerOptions: function (mode) {
+    var slotsMap = this.data.slotsMap;
+    var timeSlots = this.data.timeSlots;
+    var options = [];
+
+    if (mode === 'quick') {
+      options.push({ label: '🎲 随缘', pdtHour: null });
+    }
+
+    for (var i = 0; i < timeSlots.length; i++) {
+      var ts = timeSlots[i];
+      var count = slotsMap[ts.pdtHour] ? slotsMap[ts.pdtHour].totalCount : 0;
+      var label = ts.display + '（' + count + '人）';
+      options.push({ label: label, pdtHour: ts.pdtHour });
+    }
+
+    return options;
   },
 
   loadSlots: async function () {
@@ -159,76 +193,170 @@ Page({
     }
   },
 
-  // ===== 报名 =====
+  // ===== 报名弹窗 =====
 
-  handleJoin: async function (e) {
-    var pdtHour = Number(e.currentTarget.dataset.hour);
-    var weekDate = this.data.weekDate;
-    var nickname = this.data.nickname;
+  openSignupModal: function (e) {
+    var mode = e.currentTarget.dataset.mode; // 'quick' or 'create'
+    var hour = e.currentTarget.dataset.hour;  // optional: pre-selected hour
+    var options = this.buildTimePickerOptions(mode);
+
+    var pickerIndex = 0;
+    if (hour !== undefined && hour !== null) {
+      var hourNum = Number(hour);
+      for (var i = 0; i < options.length; i++) {
+        if (options[i].pdtHour === hourNum) {
+          pickerIndex = i;
+          break;
+        }
+      }
+    }
+
+    this.setData({
+      showSignupModal: true,
+      signupMode: mode,
+      signupHour: options[pickerIndex].pdtHour,
+      signupRole: '输出',
+      signupRecurring: false,
+      signupExtras: [],
+      extraNameInput: '',
+      extraRoleInput: '输出',
+      timePickerOptions: options,
+      timePickerIndex: pickerIndex
+    });
+  },
+
+  closeSignupModal: function () {
+    this.setData({ showSignupModal: false });
+  },
+
+  // Prevent tap-through on modal overlay
+  preventBubble: function () {},
+
+  onTimePickerChange: function (e) {
+    var idx = Number(e.detail.value);
+    var options = this.data.timePickerOptions;
+    this.setData({
+      timePickerIndex: idx,
+      signupHour: options[idx].pdtHour
+    });
+  },
+
+  selectRole: function (e) {
+    var role = e.currentTarget.dataset.role;
+    this.setData({ signupRole: role });
+  },
+
+  toggleSignupRecurring: function () {
+    this.setData({ signupRecurring: !this.data.signupRecurring });
+  },
+
+  onExtraNameInput: function (e) {
+    this.setData({ extraNameInput: e.detail.value });
+  },
+
+  selectExtraRole: function (e) {
+    var role = e.currentTarget.dataset.role;
+    this.setData({ extraRoleInput: role });
+  },
+
+  addExtra: function () {
+    var name = this.data.extraNameInput.trim();
+    if (!name) {
+      wx.showToast({ title: '请输入名字', icon: 'none' });
+      return;
+    }
+    var extras = this.data.signupExtras.concat([{
+      nickname: name.slice(0, 12),
+      role: this.data.extraRoleInput
+    }]);
+    this.setData({
+      signupExtras: extras,
+      extraNameInput: ''
+    });
+  },
+
+  removeExtra: function (e) {
+    var idx = Number(e.currentTarget.dataset.idx);
+    var extras = this.data.signupExtras.filter(function (_, i) { return i !== idx; });
+    this.setData({ signupExtras: extras });
+  },
+
+  // Submit signup
+  submitSignup: async function () {
     if (this.data.actionLoading) return;
 
-    var localDisplay = this.getLocalDisplay(pdtHour);
-    var self = this;
+    var mode = this.data.signupMode;
+    var pdtHour = this.data.signupHour;
+    var role = this.data.signupRole;
+    var recurring = this.data.signupRecurring;
+    var extras = this.data.signupExtras;
+    var weekDate = this.data.weekDate;
+    var nickname = this.data.nickname;
 
-    // 1. 选择职业
-    var roleIndex = await new Promise(function (resolve) {
-      wx.showActionSheet({
-        itemList: ['输出', '霖霖'],
-        success: function (r) { resolve(r.tapIndex); },
-        fail: function () { resolve(-1); }
-      });
-    });
-    if (roleIndex === -1) return; // 取消
-    var role = roleIndex === 0 ? '输出' : '霖霖';
-
-    // 2. 每周自动？
-    var modalRes = await new Promise(function (resolve) {
-      wx.showModal({
-        title: '报名 ' + localDisplay,
-        content: '职业：' + role + '\n每周自动报名此时段？',
-        confirmText: '每周自动',
-        cancelText: '仅本周',
-        success: resolve
-      });
-    });
-
-    var recurring = modalRes.confirm;
+    if (mode === 'create' && pdtHour === null) {
+      wx.showToast({ title: '创建车队需选择时段', icon: 'none' });
+      return;
+    }
 
     this.setData({ actionLoading: true });
 
     try {
+      var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
+      var callData = {
+        action: action,
+        weekDate: weekDate,
+        hour: pdtHour,
+        nickname: nickname,
+        role: role,
+        recurring: recurring
+      };
+
+      if (extras.length > 0) {
+        callData.extraMembers = extras;
+      }
+
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: {
-          action: 'join',
-          weekDate: weekDate,
-          hour: pdtHour,
-          nickname: nickname,
-          role: role,
-          recurring: recurring
-        }
+        data: callData
       });
 
       if (res.result.success) {
-        var msg = '已报名 ' + localDisplay;
+        var localDisplay = pdtHour !== null ? this.getLocalDisplay(pdtHour) : '随缘';
+        var msg = mode === 'quick' ? '已加入 ' + localDisplay : '已创建车队 ' + localDisplay;
         if (recurring) msg += '（每周自动）';
         wx.showToast({ title: msg, icon: 'none' });
 
-        self.setData({
-          isRecurring: recurring,
-          recurringHour: recurring ? pdtHour : null,
-          recurringLocalDisplay: recurring ? localDisplay : ''
-        });
-        await self.loadSlots();
-        self.requestSubscribe();
+        if (recurring && pdtHour !== null) {
+          this.setData({
+            isRecurring: true,
+            recurringHour: pdtHour,
+            recurringLocalDisplay: this.getLocalDisplay(pdtHour)
+          });
+        }
+
+        this.setData({ showSignupModal: false });
+        await this.loadSlots();
+        this.requestSubscribe();
       } else {
         wx.showToast({ title: res.result.message, icon: 'none' });
       }
     } catch (err) {
+      console.error('submitSignup failed', err);
       wx.showToast({ title: '操作失败', icon: 'none' });
     } finally {
-      self.setData({ actionLoading: false });
+      this.setData({ actionLoading: false });
     }
+  },
+
+  // ===== Per-slot join button =====
+
+  handleSlotJoin: function (e) {
+    var hour = e.currentTarget.dataset.hour;
+    this.openSignupModal({
+      currentTarget: {
+        dataset: { mode: 'quick', hour: hour }
+      }
+    });
   },
 
   // ===== 退出 =====
@@ -254,7 +382,6 @@ Page({
 
       if (res.result.success) {
         wx.showToast({ title: '已退出报名' });
-        // 不清除 isRecurring，下周 autoRegister 仍会自动报名
         await this.loadSlots();
       } else {
         wx.showToast({ title: res.result.message, icon: 'none' });
@@ -316,13 +443,48 @@ Page({
     }
   },
 
+  // ===== Remove proxy member =====
+
+  handleRemoveProxy: async function (e) {
+    var memberOpenid = e.currentTarget.dataset.memberOpenid;
+    var memberNickname = e.currentTarget.dataset.memberNickname;
+    var slotId = e.currentTarget.dataset.slotId;
+
+    var confirm = await this.showConfirm('移除代报', '确定移除 ' + memberNickname + '？');
+    if (!confirm) return;
+
+    this.setData({ actionLoading: true });
+
+    try {
+      var res = await wx.cloud.callFunction({
+        name: 'api',
+        data: {
+          action: 'removeProxy',
+          weekDate: this.data.weekDate,
+          slotId: slotId,
+          memberOpenid: memberOpenid
+        }
+      });
+
+      if (res.result.success) {
+        wx.showToast({ title: '已移除 ' + memberNickname });
+        await this.loadSlots();
+      } else {
+        wx.showToast({ title: res.result.message, icon: 'none' });
+      }
+    } catch (err) {
+      wx.showToast({ title: '操作失败', icon: 'none' });
+    } finally {
+      this.setData({ actionLoading: false });
+    }
+  },
+
   // ===== 取消/开启 每周自动 =====
 
   toggleRecurring: async function () {
     var newRecurring = !this.data.isRecurring;
 
     if (newRecurring) {
-      // 开启：需要知道绑哪个时段
       var myReg = this.data.myRegistration;
       if (!myReg) {
         wx.showToast({ title: '请先报名一个时段', icon: 'none' });
@@ -344,7 +506,6 @@ Page({
         wx.showToast({ title: '操作失败', icon: 'none' });
       }
     } else {
-      // 关闭
       try {
         await wx.cloud.callFunction({
           name: 'api',

@@ -43,6 +43,45 @@ const commands = [
         required: true
       }
     ]
+  },
+  {
+    name: '代报',
+    description: '帮别人报名',
+    options: [
+      {
+        name: '名字',
+        description: '被代报人的名字',
+        type: 3,
+        required: true
+      },
+      {
+        name: '职业',
+        description: '职业（默认输出）',
+        type: 3,
+        required: false,
+        choices: [
+          { name: '输出 🔵', value: '输出' },
+          { name: '霖霖 🟢', value: '霖霖' }
+        ]
+      },
+      {
+        name: '时段',
+        description: '时段 PT 小时（默认和你同时段）',
+        type: 3,
+        required: false,
+        choices: [
+          { name: '2 PM PT', value: '14' },
+          { name: '3 PM PT', value: '15' },
+          { name: '4 PM PT', value: '16' },
+          { name: '5 PM PT', value: '17' },
+          { name: '6 PM PT', value: '18' },
+          { name: '7 PM PT', value: '19' },
+          { name: '8 PM PT', value: '20' },
+          { name: '9 PM PT', value: '21' },
+          { name: '10 PM PT', value: '22' }
+        ]
+      }
+    ]
   }
 ];
 

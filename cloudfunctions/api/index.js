@@ -9,10 +9,12 @@ const { getSecrets } = require('../lib/config');
 exports.main = async (event) => {
   const { action, userId, ...params } = event;
   const wxContext = cloud.getWXContext();
-  // 微信用户用 OPENID，网页用户传 userId
   const openid = wxContext.OPENID || userId;
 
-  const handlers = { getSlots, join, leave, move, updateNickname, setRecurring };
+  const handlers = {
+    getSlots, join, quickJoin, createTeam, leave, move,
+    updateNickname, setRecurring, removeProxy
+  };
   const adminHandlers = { adminList, adminRemove, adminBan, adminUnban };
   const allHandlers = Object.assign({}, handlers, adminHandlers);
 
@@ -20,12 +22,10 @@ exports.main = async (event) => {
     return { success: false, message: '未知操作: ' + action };
   }
 
-  // 管理员操作：验密码
   if (adminHandlers[action]) {
     return await adminHandlers[action](params);
   }
 
-  // getSlots 不需要用户身份
   if (action === 'getSlots') {
     return await handlers[action](openid, params);
   }
@@ -34,8 +34,8 @@ exports.main = async (event) => {
     return { success: false, message: '无法识别用户' };
   }
 
-  // 检查是否被封禁
-  if (action === 'join') {
+  // 封禁检查（报名类操作）
+  if (action === 'join' || action === 'quickJoin' || action === 'createTeam') {
     var userCheck = await db.collection('users').where({ openid: openid }).get();
     if (userCheck.data.length > 0 && userCheck.data[0].banned) {
       return { success: false, message: '你的账号已被管理员限制报名' };
@@ -53,7 +53,7 @@ exports.main = async (event) => {
 // ===== 获取报名数据 =====
 
 async function getSlots(openid, { weekDate }) {
-  const res = await db.collection('slots')
+  var res = await db.collection('slots')
     .where({ weekDate })
     .orderBy('hour', 'asc')
     .orderBy('carIndex', 'asc')
@@ -62,90 +62,111 @@ async function getSlots(openid, { weekDate }) {
   return { success: true, slots: res.data };
 }
 
-// ===== 报名 =====
+// ===== 旧版报名（向后兼容，等同 quickJoin） =====
 
-async function join(openid, { weekDate, hour, nickname, role, recurring }) {
+async function join(openid, params) {
+  return await quickJoin(openid, params);
+}
+
+// ===== 快速加入 =====
+
+async function quickJoin(openid, { weekDate, hour, nickname, role, recurring, extraMembers }) {
+  role = role || '输出';
+
   // 检查本周是否已报名
-  const existing = await db.collection('slots')
+  var existing = await db.collection('slots')
     .where({ weekDate, members: _.elemMatch({ openid }) })
     .get();
-
   if (existing.data.length > 0) {
-    return { success: false, message: '你本周已报名，请使用「挪到这里」切换时段' };
+    return { success: false, message: '你本周已报名，请使用挪动切换时段' };
   }
 
-  // 查找该时段有空位的车
-  const cars = await db.collection('slots')
-    .where({ weekDate, hour, full: _.neq(true) })
-    .orderBy('carIndex', 'asc')
-    .limit(1)
-    .get();
+  var targetCar;
+  var resultHour;
 
-  var resultCarIndex;
-
-  if (cars.data.length > 0) {
-    const car = cars.data[0];
-    const newCount = car.count + 1;
-    const isFull = newCount >= 10;
-
-    await db.collection('slots').doc(car._id).update({
-      data: {
-        members: _.push({ openid, nickname, role: role || '输出', joinedAt: db.serverDate() }),
-        count: newCount,
-        full: isFull
-      }
-    });
-
-    if (isFull) {
-      await onCarFull(weekDate, hour, car.carIndex + 1, car.members.concat([{ openid, nickname }]));
-    }
-
-    resultCarIndex = car.carIndex;
+  if (hour != null) {
+    // 指定时段：找 count 最大的非满车（优先填满车）
+    targetCar = await findBestCar(weekDate, hour);
+    resultHour = hour;
   } else {
-    // 没有空车，开新车
-    const allCars = await db.collection('slots')
-      .where({ weekDate, hour })
-      .orderBy('carIndex', 'desc')
-      .limit(1)
-      .get();
+    // 随缘：跨所有时段找 count 最大的非满车
+    targetCar = await findBestCarAnyHour(weekDate);
+    resultHour = targetCar ? targetCar.hour : 14; // 全空默认14:00
+  }
 
-    const newCarIndex = allCars.data.length > 0
-      ? allCars.data[0].carIndex + 1
-      : 0;
-
-    await db.collection('slots').add({
-      data: {
-        weekDate, hour, carIndex: newCarIndex,
-        members: [{ openid, nickname, role: role || '输出', joinedAt: db.serverDate() }],
-        count: 1, full: false, createdAt: db.serverDate()
-      }
+  // 计算所有要加入的人（自己 + 代报名）
+  var allMembers = [{ openid: openid, nickname: nickname, role: role, registeredBy: null }];
+  if (extraMembers && extraMembers.length > 0) {
+    extraMembers.forEach(function(em, i) {
+      allMembers.push({
+        openid: openid + '_p' + i,
+        nickname: em.nickname,
+        role: em.role || '输出',
+        registeredBy: openid
+      });
     });
-
-    resultCarIndex = newCarIndex;
   }
 
-  // 保存 role 到用户表（下次 autoRegister 用）
-  if (role) {
-    var _ur = await db.collection('users').where({ openid }).get();
-    if (_ur.data.length > 0) {
-      await db.collection('users').doc(_ur.data[0]._id).update({ data: { role: role } });
-    }
+  // 加入车（可能溢出到新车）
+  var result = await addMembersToCar(weekDate, resultHour, targetCar, allMembers, null);
+
+  // 保存 role 到用户表
+  await saveUserRole(openid, role);
+
+  // 处理 recurring
+  if (recurring === true) {
+    await setUserRecurring(openid, resultHour);
+  } else if (recurring === false) {
+    await clearUserRecurring(openid);
   }
 
-  // 处理每周自动报名
+  return { success: true, hour: resultHour, carIndex: result.carIndex };
+}
+
+// ===== 创建车队 =====
+
+async function createTeam(openid, { weekDate, hour, nickname, role, recurring, extraMembers }) {
+  role = role || '输出';
+
+  // 检查本周是否已报名
+  var existing = await db.collection('slots')
+    .where({ weekDate, members: _.elemMatch({ openid }) })
+    .get();
+  if (existing.data.length > 0) {
+    return { success: false, message: '你本周已报名，请先退出再创建车队' };
+  }
+
+  // 计算所有要加入的人
+  var allMembers = [{ openid: openid, nickname: nickname, role: role, registeredBy: null }];
+  if (extraMembers && extraMembers.length > 0) {
+    extraMembers.forEach(function(em, i) {
+      allMembers.push({
+        openid: openid + '_p' + i,
+        nickname: em.nickname,
+        role: em.role || '输出',
+        registeredBy: openid
+      });
+    });
+  }
+
+  // 始终创建新车，leader 为自己
+  var result = await addMembersToCar(weekDate, hour, null, allMembers, openid);
+
+  await saveUserRole(openid, role);
+
   if (recurring === true) {
     await setUserRecurring(openid, hour);
   } else if (recurring === false) {
     await clearUserRecurring(openid);
   }
 
-  return { success: true, hour, carIndex: resultCarIndex };
+  return { success: true, hour: hour, carIndex: result.carIndex };
 }
 
 // ===== 退出 =====
 
 async function leave(openid, { weekDate }) {
-  const existing = await db.collection('slots')
+  var existing = await db.collection('slots')
     .where({ weekDate, members: _.elemMatch({ openid }) })
     .get();
 
@@ -153,19 +174,24 @@ async function leave(openid, { weekDate }) {
     return { success: false, message: '你本周未报名' };
   }
 
-  const slot = existing.data[0];
-  const newMembers = slot.members.filter(m => m.openid !== openid);
+  var slot = existing.data[0];
+
+  // 同时移除自己和自己代报的人
+  var newMembers = slot.members.filter(function(m) {
+    return m.openid !== openid && m.registeredBy !== openid;
+  });
+
+  // 处理 leader
+  var updateData = { members: newMembers, count: newMembers.length, full: false };
+  if (slot.leader === openid) {
+    updateData.leader = null;
+  }
 
   if (newMembers.length === 0) {
     await db.collection('slots').doc(slot._id).remove();
   } else {
-    await db.collection('slots').doc(slot._id).update({
-      data: { members: newMembers, count: newMembers.length, full: false }
-    });
+    await db.collection('slots').doc(slot._id).update({ data: updateData });
   }
-
-  // 退出仅退本周，不影响每周自动设置
-  // 下周 autoRegister 仍会自动帮用户报名
 
   return { success: true };
 }
@@ -173,7 +199,7 @@ async function leave(openid, { weekDate }) {
 // ===== 挪动 =====
 
 async function move(openid, { weekDate, targetHour, nickname, role }) {
-  const existing = await db.collection('slots')
+  var existing = await db.collection('slots')
     .where({ weekDate, members: _.elemMatch({ openid }) })
     .get();
 
@@ -181,59 +207,193 @@ async function move(openid, { weekDate, targetHour, nickname, role }) {
     return { success: false, message: '你本周未报名' };
   }
 
-  const currentSlot = existing.data[0];
-
+  var currentSlot = existing.data[0];
   if (currentSlot.hour === targetHour) {
     return { success: false, message: '你已在该时段' };
   }
 
-  // 先退出当前车
-  const newMembers = currentSlot.members.filter(m => m.openid !== openid);
+  // 收集自己和自己代报的人
+  var myMembers = currentSlot.members.filter(function(m) {
+    return m.openid === openid || m.registeredBy === openid;
+  });
+  var myMember = myMembers.find(function(m) { return m.openid === openid; });
+  var myRole = (myMember && myMember.role) || role || '输出';
+
+  // 从老车移除
+  var newMembers = currentSlot.members.filter(function(m) {
+    return m.openid !== openid && m.registeredBy !== openid;
+  });
+  var updateData = { members: newMembers, count: newMembers.length, full: false };
+  if (currentSlot.leader === openid) {
+    updateData.leader = null; // 离开时失去 leader
+  }
 
   if (newMembers.length === 0) {
     await db.collection('slots').doc(currentSlot._id).remove();
   } else {
-    await db.collection('slots').doc(currentSlot._id).update({
-      data: { members: newMembers, count: newMembers.length, full: false }
-    });
+    await db.collection('slots').doc(currentSlot._id).update({ data: updateData });
   }
 
-  // 如果已开启自动报名，挪动后更新到新时段
-  const userRes = await db.collection('users').where({ openid }).get();
-  var wasRecurring = false;
+  // 更新 recurring
+  var userRes = await db.collection('users').where({ openid }).get();
   if (userRes.data.length > 0 && userRes.data[0].recurringHour != null) {
-    wasRecurring = true;
     await setUserRecurring(openid, targetHour);
   }
 
-  // 加入目标时段（不传 recurring，避免覆盖上面的设置）
-  // 保留原有 role
-  var myMember = currentSlot.members.find(function(m) { return m.openid === openid; });
-  var myRole = (myMember && myMember.role) || role || '输出';
-  return await join(openid, { weekDate, hour: targetHour, nickname, role: myRole });
+  // 加入目标时段（带上代报的人，但不保留 leader）
+  var targetCar = await findBestCar(weekDate, targetHour);
+  var allToMove = [{ openid: openid, nickname: nickname || myMember.nickname, role: myRole, registeredBy: null }];
+  myMembers.forEach(function(m) {
+    if (m.openid !== openid) {
+      allToMove.push({ openid: m.openid, nickname: m.nickname, role: m.role, registeredBy: openid });
+    }
+  });
+  var result = await addMembersToCar(weekDate, targetHour, targetCar, allToMove, null);
+
+  return { success: true, hour: targetHour, carIndex: result.carIndex };
+}
+
+// ===== 移除代报名 =====
+
+async function removeProxy(openid, { weekDate, targetOpenid }) {
+  var existing = await db.collection('slots')
+    .where({ weekDate, members: _.elemMatch({ openid: targetOpenid }) })
+    .get();
+
+  if (existing.data.length === 0) {
+    return { success: false, message: '找不到该成员' };
+  }
+
+  var slot = existing.data[0];
+  var target = slot.members.find(function(m) { return m.openid === targetOpenid; });
+
+  if (!target || target.registeredBy !== openid) {
+    return { success: false, message: '只能移除自己代报的人' };
+  }
+
+  var newMembers = slot.members.filter(function(m) { return m.openid !== targetOpenid; });
+
+  if (newMembers.length === 0) {
+    await db.collection('slots').doc(slot._id).remove();
+  } else {
+    await db.collection('slots').doc(slot._id).update({
+      data: { members: newMembers, count: newMembers.length, full: newMembers.length >= 10 }
+    });
+  }
+
+  return { success: true };
+}
+
+// ===== 核心工具：查找最佳车 =====
+
+// 指定时段找 count 最大的非满车（优先填满车，优先有 leader 的车）
+async function findBestCar(weekDate, hour) {
+  var cars = await db.collection('slots')
+    .where({ weekDate, hour: hour, full: _.neq(true) })
+    .orderBy('count', 'desc')
+    .limit(20)
+    .get();
+
+  if (cars.data.length === 0) return null;
+
+  // 有 leader 的车优先
+  var withLeader = cars.data.filter(function(c) { return c.leader; });
+  if (withLeader.length > 0) return withLeader[0];
+  return cars.data[0];
+}
+
+// 跨所有时段找 count 最大的非满车
+async function findBestCarAnyHour(weekDate) {
+  var cars = await db.collection('slots')
+    .where({ weekDate, full: _.neq(true) })
+    .orderBy('count', 'desc')
+    .limit(20)
+    .get();
+
+  if (cars.data.length === 0) return null;
+
+  var withLeader = cars.data.filter(function(c) { return c.leader; });
+  if (withLeader.length > 0) return withLeader[0];
+  return cars.data[0];
+}
+
+// 把多个成员加入车（处理溢出到新车）
+async function addMembersToCar(weekDate, hour, targetCar, members, leader) {
+  var firstCarIndex = null;
+
+  for (var i = 0; i < members.length; i++) {
+    var m = members[i];
+
+    if (targetCar && targetCar.count < 10) {
+      // 加入现有车
+      var newCount = targetCar.count + 1;
+      await db.collection('slots').doc(targetCar._id).update({
+        data: {
+          members: _.push({
+            openid: m.openid, nickname: m.nickname,
+            role: m.role || '输出', registeredBy: m.registeredBy || null,
+            joinedAt: db.serverDate()
+          }),
+          count: newCount,
+          full: newCount >= 10
+        }
+      });
+      targetCar.count = newCount;
+      if (firstCarIndex === null) firstCarIndex = targetCar.carIndex;
+
+      if (newCount >= 10) {
+        await onCarFull(weekDate, hour, targetCar.carIndex + 1, []);
+        targetCar = null; // 满了，下一个人开新车
+      }
+    } else {
+      // 开新车
+      var allCars = await db.collection('slots')
+        .where({ weekDate, hour })
+        .orderBy('carIndex', 'desc')
+        .limit(1)
+        .get();
+      var newCarIndex = allCars.data.length > 0 ? allCars.data[0].carIndex + 1 : 0;
+
+      var newCarData = {
+        weekDate: weekDate, hour: hour, carIndex: newCarIndex,
+        members: [{
+          openid: m.openid, nickname: m.nickname,
+          role: m.role || '输出', registeredBy: m.registeredBy || null,
+          joinedAt: db.serverDate()
+        }],
+        count: 1, full: false,
+        leader: (i === 0 && leader) ? leader : null,
+        createdAt: db.serverDate()
+      };
+
+      var addRes = await db.collection('slots').add({ data: newCarData });
+
+      // 记住新车供后续成员加入
+      targetCar = { _id: addRes._id, carIndex: newCarIndex, count: 1 };
+      if (firstCarIndex === null) firstCarIndex = newCarIndex;
+    }
+  }
+
+  return { carIndex: firstCarIndex };
 }
 
 // ===== 更新昵称 =====
 
 async function updateNickname(openid, { nickname }) {
-  const userRes = await db.collection('users').where({ openid }).get();
+  var userRes = await db.collection('users').where({ openid }).get();
   if (userRes.data.length > 0) {
-    await db.collection('users').doc(userRes.data[0]._id).update({
-      data: { nickname }
-    });
+    await db.collection('users').doc(userRes.data[0]._id).update({ data: { nickname } });
   }
 
-  const slotsRes = await db.collection('slots')
+  var slotsRes = await db.collection('slots')
     .where({ members: _.elemMatch({ openid }) })
     .get();
 
-  const updates = slotsRes.data.map(slot => {
-    const updatedMembers = slot.members.map(m =>
-      m.openid === openid ? { ...m, nickname } : m
-    );
-    return db.collection('slots').doc(slot._id).update({
-      data: { members: updatedMembers }
+  var updates = slotsRes.data.map(function(slot) {
+    var updatedMembers = slot.members.map(function(m) {
+      return m.openid === openid ? Object.assign({}, m, { nickname: nickname }) : m;
     });
+    return db.collection('slots').doc(slot._id).update({ data: { members: updatedMembers } });
   });
 
   await Promise.all(updates);
@@ -253,39 +413,39 @@ async function setRecurring(openid, { hour }) {
 
 // ===== 内部工具 =====
 
+async function saveUserRole(openid, role) {
+  if (!role) return;
+  var res = await db.collection('users').where({ openid }).get();
+  if (res.data.length > 0) {
+    await db.collection('users').doc(res.data[0]._id).update({ data: { role: role } });
+  }
+}
+
 async function setUserRecurring(openid, hour) {
-  const userRes = await db.collection('users').where({ openid }).get();
-  if (userRes.data.length > 0) {
-    await db.collection('users').doc(userRes.data[0]._id).update({
-      data: { recurringHour: hour }
-    });
+  var res = await db.collection('users').where({ openid }).get();
+  if (res.data.length > 0) {
+    await db.collection('users').doc(res.data[0]._id).update({ data: { recurringHour: hour } });
   }
 }
 
 async function clearUserRecurring(openid) {
-  const userRes = await db.collection('users').where({ openid }).get();
-  if (userRes.data.length > 0) {
-    await db.collection('users').doc(userRes.data[0]._id).update({
-      data: { recurringHour: _.remove() }
-    });
+  var res = await db.collection('users').where({ openid }).get();
+  if (res.data.length > 0) {
+    await db.collection('users').doc(res.data[0]._id).update({ data: { recurringHour: _.remove() } });
   }
 }
 
-// ===== 满车日志 =====
-
 async function onCarFull(weekDate, hour, carNumber, members) {
-  console.log('[满车]', weekDate, hour + ':00', '第' + carNumber + '车',
-    members.map(m => m.nickname).join('、'));
+  console.log('[满车]', weekDate, hour + ':00', '第' + carNumber + '车');
 }
 
 // ===== 管理员功能 =====
-// 修改这个密码！部署前换成你自己的
+
 async function checkAdmin(adminKey) {
   var secrets = await getSecrets(db);
   return adminKey === secrets.ADMIN_KEY;
 }
 
-// 列出某周所有报名 + 用户列表
 async function adminList({ weekDate, adminKey }) {
   if (!(await checkAdmin(adminKey))) return { success: false, message: '密码错误' };
 
@@ -296,7 +456,6 @@ async function adminList({ weekDate, adminKey }) {
     .limit(100)
     .get();
 
-  // 收集所有 openid
   var openids = [];
   slotsRes.data.forEach(function(s) {
     s.members.forEach(function(m) {
@@ -304,7 +463,6 @@ async function adminList({ weekDate, adminKey }) {
     });
   });
 
-  // 查用户详情（banned 状态等）
   var usersMap = {};
   if (openids.length > 0) {
     var usersRes = await db.collection('users')
@@ -319,7 +477,6 @@ async function adminList({ weekDate, adminKey }) {
   return { success: true, slots: slotsRes.data, users: usersMap };
 }
 
-// 移除某人的报名
 async function adminRemove({ weekDate, targetOpenid, adminKey }) {
   if (!(await checkAdmin(adminKey))) return { success: false, message: '密码错误' };
 
@@ -332,18 +489,18 @@ async function adminRemove({ weekDate, targetOpenid, adminKey }) {
   var slot = existing.data[0];
   var newMembers = slot.members.filter(function(m) { return m.openid !== targetOpenid; });
 
+  var updateData = { members: newMembers, count: newMembers.length, full: false };
+  if (slot.leader === targetOpenid) updateData.leader = null;
+
   if (newMembers.length === 0) {
     await db.collection('slots').doc(slot._id).remove();
   } else {
-    await db.collection('slots').doc(slot._id).update({
-      data: { members: newMembers, count: newMembers.length, full: false }
-    });
+    await db.collection('slots').doc(slot._id).update({ data: updateData });
   }
 
   return { success: true, message: '已移除' };
 }
 
-// 封禁用户
 async function adminBan({ targetOpenid, adminKey }) {
   if (!(await checkAdmin(adminKey))) return { success: false, message: '密码错误' };
 
@@ -357,7 +514,6 @@ async function adminBan({ targetOpenid, adminKey }) {
   return { success: true, message: '已封禁' };
 }
 
-// 解封用户
 async function adminUnban({ targetOpenid, adminKey }) {
   if (!(await checkAdmin(adminKey))) return { success: false, message: '密码错误' };
 
