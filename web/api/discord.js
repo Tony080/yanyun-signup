@@ -38,7 +38,12 @@ export default async function handler(req, res) {
     var user = interaction.member ? interaction.member.user : interaction.user;
     var userId = 'dc_' + user.id;
     var displayName = interaction.member ? (interaction.member.nick || user.global_name || user.username) : (user.global_name || user.username);
+    var interactionToken = interaction.token;
 
+    // 先立即回复"处理中"（5秒内必须响应，否则 Discord 报超时）
+    res.json({ type: 5 }); // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
+
+    // 异步处理，完成后通过 webhook 更新消息
     try {
       var result;
       switch (name) {
@@ -49,14 +54,31 @@ export default async function handler(req, res) {
         case '改名': result = await handleRename(userId, opts); break;
         default: result = { content: '未知命令' };
       }
-      return res.json({ type: 4, data: result });
+      await editOriginal(interaction.application_id, interactionToken, result);
     } catch (e) {
       console.error('[discord]', name, e);
-      return res.json({ type: 4, data: { content: '出错了: ' + e.message, flags: 64 } });
+      await editOriginal(interaction.application_id, interactionToken, {
+        content: '出错了: ' + e.message
+      });
     }
+    return;
   }
 
   return res.status(400).end();
+}
+
+// 通过 webhook 编辑原始回复
+async function editOriginal(appId, token, data) {
+  var url = 'https://discord.com/api/v10/webhooks/' + appId + '/' + token + '/messages/@original';
+  try {
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch (e) {
+    console.error('[editOriginal]', e);
+  }
 }
 
 function parseOptions(opts) {
@@ -108,7 +130,6 @@ async function handleJoin(userId, displayName, opts) {
   var hour = parseInt(opts['时段']);
   var role = opts['职业'] || '输出';
 
-  // 确保用户存在
   await callLogin(userId, displayName);
 
   var res = await callApi('join', {
@@ -160,10 +181,10 @@ async function handleBoard() {
 
 async function handleRename(userId, opts) {
   var nickname = (opts['名字'] || '').trim().slice(0, 12);
-  if (!nickname) return { content: '❌ 请输入名字', flags: 64 };
+  if (!nickname) return { content: '❌ 请输入名字' };
 
   await callApi('updateNickname', { userId: userId, nickname: nickname });
-  return { content: '✅ 已改名为 **' + nickname + '**', flags: 64 };
+  return { content: '✅ 已改名为 **' + nickname + '**' };
 }
 
 // ===== 看板 Embed =====
@@ -176,7 +197,6 @@ async function buildBoardEmbed(weekDate) {
   var title = '🏯 燕云十六声 · 百业十人本';
   var description = '📅 美西 ' + (+pp[1]) + '月' + (+pp[2]) + '日 周日';
 
-  // 按小时分组
   var byHour = {};
   var totalPeople = 0;
   slots.forEach(function(s) {
