@@ -62,17 +62,24 @@ export default async function handler(req, res) {
       }
     })();
 
-    // waitUntil 告诉 Vercel：响应已发送，但请等这个 Promise 完成后再终止函数
+    // 先发 deferred 响应给 Discord（必须在 asyncWork 之前）
+    res.json({ type: 5 });
+
+    // 用 waitUntil 让 Vercel 在响应发送后继续执行异步任务
+    var ctx = null;
     if (req.context && req.context.waitUntil) {
-      req.context.waitUntil(asyncWork);
+      ctx = req.context;
     } else if (globalThis[Symbol.for('vercel-request-context')]) {
-      globalThis[Symbol.for('vercel-request-context')].get().waitUntil(asyncWork);
-    } else {
-      // fallback: 等完再返回
-      await asyncWork;
+      ctx = globalThis[Symbol.for('vercel-request-context')].get();
     }
 
-    return res.json({ type: 5 }); // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
+    if (ctx && ctx.waitUntil) {
+      ctx.waitUntil(asyncWork);
+    } else {
+      // 无 waitUntil 支持，同步等待（可能被 Vercel 截断，但至少尝试）
+      await asyncWork;
+    }
+    return;
   }
 
   return res.status(400).end();
