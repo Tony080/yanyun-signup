@@ -903,7 +903,7 @@ function render() {
         sortedMembers.forEach(function(m) {
           var roleClass = m.role === '霖霖' ? 'role-linlin' : 'role-output';
           var isMe = m.openid === s.userId;
-          var isLeader = leaderName && m.nickname === leaderName && !m.isProxy;
+          var isLeader = car.leader && m.openid === car.leader;
           var isProxy = m.isProxy;
           var canRemoveProxy = isProxy && m.registeredBy === s.userId;
 
