@@ -548,20 +548,7 @@ function renderSignupModal() {
 }
 
 function renderProxyTags() {
-  var tagsEl = document.getElementById('signupProxyTags');
-  if (state.signupExtras.length === 0) {
-    tagsEl.innerHTML = '';
-    return;
-  }
-  var html = '';
-  state.signupExtras.forEach(function(extra, i) {
-    var roleClass = extra.role === '霖霖' ? 'role-linlin' : 'role-output';
-    var roleIcon = extra.role === '霖霖' ? '🟢' : '🔵';
-    html += '<span class="proxy-tag ' + roleClass + '">'
-      + esc(extra.nickname) + ' ' + roleIcon
-      + ' <span class="proxy-remove" onclick="window._signupRemoveProxy(' + i + ')">×</span></span>';
-  });
-  tagsEl.innerHTML = html;
+  // 代报名 UI 已移到 header，此函数保留为空操作
 }
 
 window._signupSetRole = function(role) {
@@ -574,21 +561,9 @@ window._signupToggleRecurring = function() {
   renderSignupModal();
 };
 
-window._signupAddProxy = function() {
-  var nameInput = document.getElementById('signupProxyName');
-  var roleSelect = document.getElementById('signupProxyRole');
-  var name = (nameInput.value || '').trim().slice(0, 12);
-  if (!name) { showToast('请输入角色名'); return; }
-  if (state.signupExtras.length >= 9) { showToast('最多帮9人报名'); return; }
-  state.signupExtras.push({ nickname: name, role: roleSelect.value });
-  nameInput.value = '';
-  renderProxyTags();
-};
-
-window._signupRemoveProxy = function(index) {
-  state.signupExtras.splice(index, 1);
-  renderProxyTags();
-};
+// 弹窗内的代报名已移到 header，这些保留为空操作防止报错
+window._signupAddProxy = function() {};
+window._signupRemoveProxy = function() {};
 
 window._signupClose = closeSignupModal;
 
