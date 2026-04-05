@@ -40,60 +40,25 @@ export default async function handler(req, res) {
     var displayName = interaction.member ? (interaction.member.nick || user.global_name || user.username) : (user.global_name || user.username);
     var interactionToken = interaction.token;
 
-    // 立即回复 DEFERRED（"thinking..."），然后异步处理
-    // 用 waitUntil 让 Vercel 在响应后继续执行异步任务
-    var appId = interaction.application_id;
-
-    var asyncWork = (async function() {
-      try {
-        var result;
-        switch (name) {
-          case '报名': result = await handleJoin(userId, displayName, opts); break;
-          case '退出': result = await handleLeave(userId); break;
-          case '挪动': result = await handleMove(userId, displayName, opts); break;
-          case '看板': result = await handleBoard(); break;
-          case '改名': result = await handleRename(userId, opts); break;
-          default: result = { content: '未知命令' };
-        }
-        await editOriginal(appId, interactionToken, result);
-      } catch (e) {
-        console.error('[discord]', name, e);
-        await editOriginal(appId, interactionToken, { content: '出错了: ' + e.message });
+    // 直接处理完再响应（Vercel 函数超时设为25秒，Discord 允许3秒但我们用 type 4 直接回）
+    try {
+      var result;
+      switch (name) {
+        case '报名': result = await handleJoin(userId, displayName, opts); break;
+        case '退出': result = await handleLeave(userId); break;
+        case '挪动': result = await handleMove(userId, displayName, opts); break;
+        case '看板': result = await handleBoard(); break;
+        case '改名': result = await handleRename(userId, opts); break;
+        default: result = { content: '未知命令' };
       }
-    })();
-
-    // 先发 deferred 响应给 Discord（必须在 asyncWork 之前）
-    res.json({ type: 5 });
-
-    // 用 waitUntil 让 Vercel 在响应发送后继续执行异步任务
-    var ctx = null;
-    if (req.context && req.context.waitUntil) {
-      ctx = req.context;
-    } else if (globalThis[Symbol.for('vercel-request-context')]) {
-      ctx = globalThis[Symbol.for('vercel-request-context')].get();
+      return res.json({ type: 4, data: result });
+    } catch (e) {
+      console.error('[discord]', name, e);
+      return res.json({ type: 4, data: { content: '出错了: ' + e.message } });
     }
-
-    if (ctx && ctx.waitUntil) {
-      ctx.waitUntil(asyncWork);
-    } else {
-      // 无 waitUntil 支持，同步等待（可能被 Vercel 截断，但至少尝试）
-      await asyncWork;
-    }
-    return;
   }
 
   return res.status(400).end();
-}
-
-// 通过 webhook 编辑延迟回复
-async function editOriginal(appId, token, data) {
-  var url = 'https://discord.com/api/v10/webhooks/' + appId + '/' + token + '/messages/@original';
-  var r = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  if (!r.ok) console.error('[editOriginal] failed:', r.status, await r.text());
 }
 
 function parseOptions(opts) {

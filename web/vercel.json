@@ -4,7 +4,7 @@
   "outputDirectory": ".",
   "functions": {
     "api/discord.js": {
-      "maxDuration": 10
+      "maxDuration": 25
     }
   }
 }
