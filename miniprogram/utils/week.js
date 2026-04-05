@@ -54,12 +54,13 @@ function pdtToLocal(pdtDateStr, pdtHour) {
   // PDT → UTC → 浏览器自动转本地
   var utcHour = pdtHour - PDT_OFFSET;
   var dt = new Date(Date.UTC(y, m - 1, d, utcHour, 0, 0));
+  var h12 = fmt12h(dt.getHours());
   return {
     localDate: formatDate(dt),
     localHour: dt.getHours(),
     weekday: WEEKDAY_NAMES[dt.getDay()],
-    display: WEEKDAY_NAMES[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00',
-    shortDisplay: pad(dt.getHours()) + ':00',
+    display: WEEKDAY_NAMES[dt.getDay()] + ' ' + h12,
+    shortDisplay: h12,
     dateLabel: (dt.getMonth() + 1) + '月' + dt.getDate() + '日'
   };
 }
@@ -73,6 +74,13 @@ function formatDate(date) {
 
 function pad(n) {
   return String(n).padStart(2, '0');
+}
+
+function fmt12h(hour) {
+  if (hour === 0) return '12:00 AM';
+  if (hour < 12) return hour + ':00 AM';
+  if (hour === 12) return '12:00 PM';
+  return (hour - 12) + ':00 PM';
 }
 
 module.exports = {

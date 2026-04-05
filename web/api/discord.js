@@ -182,9 +182,10 @@ async function buildBoardEmbed(weekDate) {
   var res = await callApi('getSlots', { weekDate: weekDate });
   var slots = (res.success && res.slots) ? res.slots : [];
 
-  var pp = weekDate.split('-');
   var title = '🏯 燕云十六声 · 百业十人本';
-  var description = '📅 美西 ' + (+pp[1]) + '月' + (+pp[2]) + '日 周日';
+  // 用第一个时段的 Discord 日期格式，每个用户看到自己本地的日期
+  var firstSlotDate = '<t:' + pdtToUnix(weekDate, 14) + ':D>';
+  var description = '📅 ' + firstSlotDate;
 
   var byHour = {};
   var totalPeople = 0;
@@ -214,7 +215,7 @@ async function buildBoardEmbed(weekDate) {
     });
 
     fields.push({
-      name: '🕐 ' + discordTime(weekDate, hour) + '  (PDT ' + hour + ':00)',
+      name: '🕐 ' + discordTime(weekDate, hour) + ' 本地时间',
       value: lines.join('\n'),
       inline: false
     });

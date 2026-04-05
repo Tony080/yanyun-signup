@@ -273,12 +273,20 @@ function getCurrentSunday() {
   return fmtDate(result);
 }
 
+function fmt12h(hour) {
+  if (hour === 0) return '12:00 AM';
+  if (hour < 12) return hour + ':00 AM';
+  if (hour === 12) return '12:00 PM';
+  return (hour - 12) + ':00 PM';
+}
+
 function pdtToLocal(pdtDateStr, pdtHour) {
   var p = pdtDateStr.split('-');
   var dt = new Date(Date.UTC(+p[0], +p[1]-1, +p[2], pdtHour - PDT_OFFSET, 0, 0));
+  var h12 = fmt12h(dt.getHours());
   return {
-    display: WEEKDAYS[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00',
-    short: pad(dt.getHours()) + ':00',
+    display: WEEKDAYS[dt.getDay()] + ' ' + h12,
+    short: h12,
     dateLabel: (dt.getMonth()+1) + '月' + dt.getDate() + '日'
   };
 }
