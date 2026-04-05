@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const https = require('https');
-const { getSecrets } = require('../lib/config');
+const { getSecrets } = require('./config');
 
 const PDT_OFFSET = -7;
 var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
