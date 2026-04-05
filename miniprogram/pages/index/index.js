@@ -20,6 +20,11 @@ Page({
     loading: true,
     actionLoading: false,
 
+    // 帮报名列表（header 常驻）
+    proxyList: [],
+    proxyNameInput: '',
+    proxyRoleIndex: 0,
+
     // Signup modal state
     showSignupModal: false,
     signupMode: '',        // 'quick' or 'create'
@@ -177,6 +182,31 @@ Page({
     this.setData({ nicknameInput: e.detail.value });
   },
 
+  // ===== 帮报名列表管理 =====
+
+  onProxyNameInput: function (e) {
+    this.setData({ proxyNameInput: e.detail.value });
+  },
+
+  onProxyRoleChange: function (e) {
+    this.setData({ proxyRoleIndex: Number(e.detail.value) });
+  },
+
+  addProxyToList: function () {
+    var name = (this.data.proxyNameInput || '').trim().slice(0, 12);
+    if (!name) { wx.showToast({ title: '请输入名字', icon: 'none' }); return; }
+    var role = this.data.proxyRoleIndex === 1 ? '霖霖' : '输出';
+    var list = this.data.proxyList.concat([{ nickname: name, role: role }]);
+    this.setData({ proxyList: list, proxyNameInput: '' });
+  },
+
+  removeProxyFromList: function (e) {
+    var idx = e.currentTarget.dataset.index;
+    var list = this.data.proxyList.slice();
+    list.splice(idx, 1);
+    this.setData({ proxyList: list });
+  },
+
   saveNickname: async function () {
     var nicknameInput = this.data.nicknameInput;
     var nickname = this.data.nickname;
@@ -318,8 +348,10 @@ Page({
         recurring: recurring
       };
 
-      if (extras.length > 0) {
-        callData.extraMembers = extras;
+      // 合并弹窗 extras + header proxyList
+      var allExtras = extras.concat(this.data.proxyList);
+      if (allExtras.length > 0) {
+        callData.extraMembers = allExtras;
       }
 
       var res = await wx.cloud.callFunction({
@@ -341,7 +373,7 @@ Page({
           });
         }
 
-        this.setData({ showSignupModal: false });
+        this.setData({ showSignupModal: false, proxyList: [] });
         await this.loadSlots();
         this.requestSubscribe();
       } else {

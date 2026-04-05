@@ -15,6 +15,27 @@
       <view class="save-btn" bindtap="saveNickname"
             wx:if="{{nicknameInput !== nickname}}">保存</view>
     </view>
+
+    <!-- 帮别人报名（常驻 header） -->
+    <view class="proxy-section">
+      <view class="proxy-title">帮别人报名</view>
+      <view class="proxy-tags" wx:if="{{proxyList.length > 0}}">
+        <view class="proxy-tag {{item.role === '霖霖' ? 'proxy-tag-linlin' : 'proxy-tag-output'}}"
+              wx:for="{{proxyList}}" wx:key="index">
+          {{item.nickname}} {{item.role === '霖霖' ? '🟢' : '🔵'}}
+          <text class="proxy-tag-x" catchtap="removeProxyFromList" data-index="{{index}}">×</text>
+        </view>
+      </view>
+      <view class="proxy-input-row">
+        <input class="proxy-name-input" placeholder="名字" maxlength="12"
+               value="{{proxyNameInput}}" bindinput="onProxyNameInput" />
+        <picker class="proxy-role-picker" bindchange="onProxyRoleChange"
+                range="{{['🔵 输出', '🟢 霖霖']}}" value="{{proxyRoleIndex}}">
+          <view class="proxy-role-display">{{proxyRoleIndex === 1 ? '🟢 霖霖' : '🔵 输出'}}</view>
+        </picker>
+        <view class="proxy-add-btn" bindtap="addProxyToList">+</view>
+      </view>
+    </view>
   </view>
 
   <!-- 入口按钮（未报名时显示） -->
@@ -184,34 +205,6 @@
           <text wx:if="{{signupRecurring}}">✓</text>
         </view>
         <text class="recurring-check-label">每周自动</text>
-      </view>
-
-      <!-- Proxy signup section -->
-      <view class="modal-section">
-        <text class="modal-section-title">帮别人报名（可选）</text>
-
-        <!-- Existing proxy tags -->
-        <view class="extra-tags" wx:if="{{signupExtras.length > 0}}">
-          <view class="extra-tag {{item.role === '霖霖' ? 'extra-tag-linlin' : 'extra-tag-output'}}"
-                wx:for="{{signupExtras}}" wx:key="index">
-            <text>{{item.nickname}}</text>
-            <text class="extra-role-icon">{{item.role === '霖霖' ? '🟢' : '🔵'}}</text>
-            <text class="extra-remove" catchtap="removeExtra" data-idx="{{index}}">×</text>
-          </view>
-        </view>
-
-        <!-- Add proxy input row -->
-        <view class="extra-input-row">
-          <input class="extra-name-input" value="{{extraNameInput}}"
-                 bindinput="onExtraNameInput" placeholder="名字" maxlength="12" />
-          <view class="extra-role-toggle">
-            <view class="extra-role-opt {{extraRoleInput === '输出' ? 'extra-role-active-output' : ''}}"
-                  bindtap="selectExtraRole" data-role="输出">🔵</view>
-            <view class="extra-role-opt {{extraRoleInput === '霖霖' ? 'extra-role-active-linlin' : ''}}"
-                  bindtap="selectExtraRole" data-role="霖霖">🟢</view>
-          </view>
-          <view class="extra-add-btn" bindtap="addExtra">+ 添加</view>
-        </view>
       </view>
 
       <!-- Action buttons -->
