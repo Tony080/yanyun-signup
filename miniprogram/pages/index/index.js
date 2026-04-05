@@ -140,6 +140,13 @@ Page({
         if (!slotsMap[h]) {
           slotsMap[h] = { cars: [], totalCount: 0 };
         }
+        // 预计算 leader 昵称供 WXML 显示
+        if (slot.leader) {
+          var lm = slot.members.find(function(m) { return m.openid === slot.leader; });
+          slot.leaderNick = lm ? lm.nickname : '';
+        } else {
+          slot.leaderNick = '';
+        }
         slotsMap[h].cars.push(slot);
         slotsMap[h].totalCount += slot.count;
 

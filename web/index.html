@@ -867,9 +867,13 @@ function render() {
     html += '<div class="cars-area">';
     if (data && data.cars.length > 0) {
       data.cars.forEach(function(car) {
-        var leaderName = car.leader || '';
+        var leaderNick = '';
+        if (car.leader) {
+          var lm = car.members.find(function(m) { return m.openid === car.leader; });
+          if (lm) leaderNick = lm.nickname;
+        }
         var carTitle = '第' + (car.carIndex+1) + '车';
-        if (leaderName) carTitle += ' 👑' + esc(leaderName);
+        if (leaderNick) carTitle += ' 👑' + esc(leaderNick);
 
         html += '<div class="car-card ' + (car.full ? 'full' : '') + '">';
         html += '<div class="car-top"><span class="car-name">' + carTitle + '</span>';

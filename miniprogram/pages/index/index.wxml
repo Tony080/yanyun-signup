@@ -96,7 +96,7 @@
           <view class="car-card {{car.full ? 'car-full' : ''}}"
                 wx:for="{{slotsMap[slot.pdtHour].cars}}" wx:key="carIndex" wx:for-item="car">
             <view class="car-top">
-              <text class="car-name">第{{car.carIndex + 1}}车{{car.leader ? ' 👑' + car.leader : ''}}</text>
+              <text class="car-name">第{{car.carIndex + 1}}车{{car.leaderNick ? ' 👑' + car.leaderNick : ''}}</text>
               <text class="car-count">{{car.count}}/10</text>
             </view>
             <view class="car-bar">
