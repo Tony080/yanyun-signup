@@ -892,10 +892,10 @@ function render() {
 
         // Sort: leader first
         var sortedMembers = car.members.slice();
-        if (leaderName) {
+        if (car.leader) {
           sortedMembers.sort(function(a, b) {
-            if (a.nickname === leaderName && !a.isProxy) return -1;
-            if (b.nickname === leaderName && !b.isProxy) return 1;
+            if (a.openid === car.leader) return -1;
+            if (b.openid === car.leader) return 1;
             return 0;
           });
         }
