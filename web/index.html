@@ -35,6 +35,31 @@ body {
 }
 .save-btn { background: #f0b429; color: #0d1117; display: none; }
 .save-btn.show { display: block; }
+.proxy-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
+.proxy-title-row { margin-bottom: 8px; }
+.proxy-title { font-size: 12px; color: #8b949e; }
+.proxy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.proxy-tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  border-radius: 4px; font-size: 12px;
+}
+.proxy-tag-output { background: rgba(56,139,253,0.12); color: #79c0ff; border: 1px solid rgba(56,139,253,0.25); }
+.proxy-tag-linlin { background: rgba(63,185,80,0.12); color: #7ee787; border: 1px solid rgba(63,185,80,0.25); }
+.proxy-tag-x { color: #f85149; cursor: pointer; font-weight: bold; margin-left: 2px; }
+.proxy-input-row { display: flex; gap: 6px; align-items: center; }
+.proxy-name-input {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px; padding: 5px 8px; color: #e6edf3; font-size: 12px; outline: none;
+}
+.proxy-name-input:focus { border-color: rgba(240,180,41,0.4); }
+.proxy-role-select {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 5px; padding: 5px 6px; color: #e6edf3; font-size: 12px; outline: none;
+}
+.proxy-add-btn {
+  background: #238636; color: #fff; border: none; border-radius: 5px;
+  width: 28px; height: 28px; font-size: 16px; cursor: pointer; flex-shrink: 0;
+}
 .recovery-row {
   display: flex; align-items: center; justify-content: space-between;
   margin-top: 10px; gap: 8px;
@@ -278,19 +303,6 @@ body {
       </div>
     </div>
 
-    <div class="signup-field proxy-section">
-      <div class="proxy-title">帮别人报名（可选）</div>
-      <div class="proxy-tags" id="signupProxyTags"></div>
-      <div class="proxy-input-row">
-        <input id="signupProxyName" placeholder="角色名" maxlength="12">
-        <select id="signupProxyRole">
-          <option value="输出">🔵 输出</option>
-          <option value="霖霖">🟢 霖霖</option>
-        </select>
-        <button class="proxy-add-btn" onclick="window._signupAddProxy()">添加</button>
-      </div>
-    </div>
-
     <div class="signup-actions">
       <button class="signup-cancel" onclick="window._signupClose()">取消</button>
       <button id="signupConfirmBtn" onclick="window._signupSubmit()"></button>
@@ -334,6 +346,7 @@ var state = {
   recurringLocalDisplay: '',
   loading: true,
   actionLoading: false,
+  proxyList: [], // [{nickname, role}] 帮报名列表，报名时带上
   // Signup modal state
   signupMode: null, // 'quick' | 'create' | null
   signupHour: null,
@@ -608,7 +621,9 @@ window._signupSubmit = async function() {
       recurring: recurring
     };
     if (pdtHour != null) params.hour = pdtHour;
-    if (extras.length > 0) params.extraMembers = extras;
+    // 合并弹窗内的 extras + header 里的 proxyList
+    var allExtras = extras.concat(state.proxyList);
+    if (allExtras.length > 0) params.extraMembers = allExtras;
 
     var res = await callFunction('api', params);
     if (res.success) {
@@ -622,6 +637,7 @@ window._signupSubmit = async function() {
       if (displayHour != null) msg += ' ' + pdtToLocal(state.weekDate, displayHour).display;
       if (recurring) msg += '（每周自动）';
       showToast(msg);
+      state.proxyList = []; // 清空帮报名列表
       closeSignupModal();
       await loadSlots();
     } else {
@@ -807,6 +823,24 @@ function render() {
   html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
   html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
   html += '</div>';
+  // 帮别人报名（常驻在 header 里）
+  html += '<div class="proxy-section">';
+  html += '<div class="proxy-title-row"><span class="proxy-title">帮别人报名</span></div>';
+  if (s.proxyList.length > 0) {
+    html += '<div class="proxy-tags">';
+    s.proxyList.forEach(function(p, i) {
+      var rc = p.role === '霖霖' ? 'proxy-tag-linlin' : 'proxy-tag-output';
+      html += '<span class="proxy-tag ' + rc + '">' + esc(p.nickname);
+      html += ' ' + (p.role === '霖霖' ? '🟢' : '🔵');
+      html += '<span class="proxy-tag-x" onclick="window._removeProxyFromList(' + i + ')">×</span></span>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="proxy-input-row">';
+  html += '<input id="proxyNameInput" class="proxy-name-input" placeholder="名字" maxlength="12">';
+  html += '<select id="proxyRoleSelect" class="proxy-role-select"><option value="输出">🔵 输出</option><option value="霖霖">🟢 霖霖</option></select>';
+  html += '<button class="proxy-add-btn" onclick="window._addProxyToList()">+</button>';
+  html += '</div></div>';
   // 恢复码 + 恢复按钮
   html += '<div class="recovery-row">';
   if (s.recoveryCode) {
@@ -951,6 +985,19 @@ window._saveNick = saveNickname;
 window._toggleRec = toggleRecurring;
 window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
+window._addProxyToList = function() {
+  var nameEl = document.getElementById('proxyNameInput');
+  var roleEl = document.getElementById('proxyRoleSelect');
+  var name = (nameEl.value || '').trim().slice(0, 12);
+  if (!name) return;
+  state.proxyList.push({ nickname: name, role: roleEl.value || '输出' });
+  nameEl.value = '';
+  render();
+};
+window._removeProxyFromList = function(idx) {
+  state.proxyList.splice(idx, 1);
+  render();
+};
 
 // 启动
 init();
