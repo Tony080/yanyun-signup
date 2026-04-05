@@ -18,14 +18,14 @@ if (!APP_ID || !BOT_TOKEN) {
 }
 
 const timeChoices = [
-  { name: '14:00 PDT (2PM)', value: '14' },
-  { name: '15:00 PDT (3PM)', value: '15' },
-  { name: '16:00 PDT (4PM)', value: '16' },
-  { name: '17:00 PDT (5PM)', value: '17' },
-  { name: '18:00 PDT (6PM)', value: '18' },
-  { name: '19:00 PDT (7PM)', value: '19' },
-  { name: '20:00 PDT (8PM)', value: '20' },
-  { name: '21:00 PDT (9PM)', value: '21' },
+  { name: '第1场 · 2 PM PT', value: '14' },
+  { name: '第2场 · 3 PM PT', value: '15' },
+  { name: '第3场 · 4 PM PT', value: '16' },
+  { name: '第4场 · 5 PM PT', value: '17' },
+  { name: '第5场 · 6 PM PT', value: '18' },
+  { name: '第6场 · 7 PM PT', value: '19' },
+  { name: '第7场 · 8 PM PT', value: '20' },
+  { name: '第8场 · 9 PM PT', value: '21' },
   { name: '22:00 PDT (10PM)', value: '22' }
 ];
 
