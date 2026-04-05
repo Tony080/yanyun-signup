@@ -5,6 +5,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "@vercel/functions": "^1.0.0"
   }
 }

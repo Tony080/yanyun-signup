@@ -1,5 +1,6 @@
 // Vercel Serverless: Discord Interaction Endpoint (多轮交互版)
 const nacl = require('tweetnacl');
+const { waitUntil } = require('@vercel/functions');
 const { callCloudFunction } = require('../lib/wxcloud');
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
@@ -32,71 +33,115 @@ module.exports = async function handler(req, res) {
   var displayName = interaction.member
     ? (interaction.member.nick || user.global_name || user.username)
     : (user.global_name || user.username);
+  var appId = interaction.application_id;
+  var token = interaction.token;
 
-  try {
-    // Slash command (type 2)
-    if (interaction.type === 2) {
-      var name = interaction.data.name;
-      var opts = parseOptions(interaction.data.options || []);
+  // Slash command (type 2)
+  if (interaction.type === 2) {
+    var name = interaction.data.name;
+    var opts = parseOptions(interaction.data.options || []);
 
-      switch (name) {
-        case '报名': return res.json(await startSignup(userId, displayName));
-        case '退出': return res.json(await handleLeave(userId));
-        case '挪动': return res.json(await startMove(userId, displayName));
-        case '看板': return res.json(await handleBoard());
-        case '改名': return res.json(await handleRename(userId, opts));
-        default: return res.json(reply('未知命令'));
-      }
+    switch (name) {
+      // 需要调云函数的：deferred 模式
+      case '报名':
+        return deferAndProcess(res, appId, token, function() { return startSignup(userId, displayName); });
+      case '退出':
+        return deferAndProcess(res, appId, token, function() { return handleLeave(userId); });
+      case '挪动':
+        return deferAndProcess(res, appId, token, function() { return startMove(userId, displayName); });
+      case '看板':
+        return deferAndProcess(res, appId, token, function() { return handleBoard(); });
+      // 纯本地操作：直接响应
+      case '改名':
+        return deferAndProcess(res, appId, token, function() { return handleRename(userId, opts); });
+      default:
+        return res.json(reply('未知命令'));
+    }
+  }
+
+  // Component interaction (type 3): 按钮/下拉菜单
+  if (interaction.type === 3) {
+    var customId = interaction.data.custom_id;
+    var values = interaction.data.values || [];
+
+    // 不需要调云函数的步骤：直接响应（<3s）
+    if (customId.startsWith('signup_role:')) {
+      var parts = customId.split(':');
+      return res.json(await stepRecurring(parts[1], parts[2]));
     }
 
-    // Component interaction (type 3): 按钮/下拉菜单
-    if (interaction.type === 3) {
-      var customId = interaction.data.custom_id;
-      var values = interaction.data.values || [];
-
-      // 报名流程
-      if (customId === 'signup_time') {
-        return res.json(await stepRole(values[0]));
-      }
-      if (customId.startsWith('signup_role:')) {
-        var parts = customId.split(':');
-        return res.json(await stepRecurring(parts[1], parts[2]));
-      }
-      if (customId.startsWith('signup_done:')) {
-        var parts = customId.split(':');
-        return res.json(await finishSignup(userId, displayName, parts[1], parts[2], parts[3] === 'yes'));
-      }
-
-      // 挪动流程
-      if (customId === 'move_time') {
-        return res.json(await finishMove(userId, displayName, values[0]));
-      }
-
-      return res.json(update({ content: '未知操作' }));
+    // 需要调云函数的步骤：deferred + waitUntil
+    if (customId === 'signup_time') {
+      return deferComponentAndProcess(res, appId, token, function() { return stepRole(values[0]); });
     }
-  } catch (e) {
-    console.error('[discord]', e);
-    return res.json(reply('出错了: ' + e.message, true));
+    if (customId.startsWith('signup_done:')) {
+      var parts = customId.split(':');
+      return deferComponentAndProcess(res, appId, token, function() {
+        return finishSignup(userId, displayName, parts[1], parts[2], parts[3] === 'yes');
+      });
+    }
+    if (customId === 'move_time') {
+      return deferComponentAndProcess(res, appId, token, function() {
+        return finishMove(userId, displayName, values[0]);
+      });
+    }
+
+    return res.json(update({ content: '未知操作' }));
   }
 
   return res.status(400).end();
 };
 
+// ===== Deferred 响应工具 =====
+
+// 对 slash command: type 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
+function deferAndProcess(res, appId, token, asyncFn) {
+  res.json({ type: 5, data: { flags: 64 } }); // ephemeral thinking
+  waitUntil(processAndEdit(appId, token, asyncFn, false));
+}
+
+// 对 component interaction: type 6 = DEFERRED_UPDATE_MESSAGE
+function deferComponentAndProcess(res, appId, token, asyncFn) {
+  res.json({ type: 6 });
+  waitUntil(processAndEdit(appId, token, asyncFn, true));
+}
+
+async function processAndEdit(appId, token, asyncFn, isUpdate) {
+  try {
+    var result = await asyncFn();
+    var data = result.data || result;
+    await editOriginal(appId, token, data);
+  } catch (e) {
+    console.error('[discord async]', e);
+    await editOriginal(appId, token, { content: '出错了: ' + e.message });
+  }
+}
+
+async function editOriginal(appId, token, data) {
+  var url = 'https://discord.com/api/v10/webhooks/' + appId + '/' + token + '/messages/@original';
+  var r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!r.ok) {
+    var text = await r.text();
+    console.error('[editOriginal]', r.status, text);
+  }
+}
+
 // ===== 响应工具 =====
 
-// type 4: 新消息回复
 function reply(content, ephemeral) {
   var data = { content: content };
   if (ephemeral) data.flags = 64;
   return { type: 4, data: data };
 }
 
-// type 4 with components/embeds
 function replyRich(data) {
   return { type: 4, data: data };
 }
 
-// type 7: 更新当前消息（用于组件交互）
 function update(data) {
   return { type: 7, data: data };
 }
@@ -146,7 +191,6 @@ async function callLogin(userId, nickname) {
   return await callCloudFunction('login', { userId: userId, nickname: nickname });
 }
 
-// 获取各时段人数
 async function getSlotCounts(weekDate) {
   var res = await callApi('getSlots', { weekDate: weekDate });
   var slots = (res.success && res.slots) ? res.slots : [];
@@ -161,72 +205,53 @@ async function getSlotCounts(weekDate) {
 async function startSignup(userId, displayName) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
-
   var counts = await getSlotCounts(weekDate);
 
-  // 构建消息：用 Discord 时间戳显示本地时间
   var lines = HOURS.map(function(h) {
     var count = counts[h] || 0;
-    var label = count > 0 ? count + '人已报名' : '虚位以待';
-    return discordTime(weekDate, h) + ' — ' + label;
+    return discordTime(weekDate, h) + ' — ' + (count > 0 ? count + '人已报名' : '虚位以待');
   });
 
   var options = HOURS.map(function(h, i) {
     var count = counts[h] || 0;
-    return {
-      label: '第' + (i + 1) + '场 (' + count + '人)',
-      value: String(h),
-      description: h + ':00 PT'
-    };
+    return { label: '第' + (i + 1) + '场 (' + count + '人)', value: String(h), description: h + ':00 PT' };
   });
 
   return replyRich({
     content: '**选择时段报名：**\n' + lines.join('\n'),
-    components: [{
-      type: 1, // ActionRow
-      components: [{
-        type: 3, // StringSelect
-        custom_id: 'signup_time',
-        placeholder: '选择时段...',
-        options: options
-      }]
-    }],
-    flags: 64 // ephemeral，仅自己可见
+    components: [{ type: 1, components: [{
+      type: 3, custom_id: 'signup_time', placeholder: '选择时段...', options: options
+    }] }],
+    flags: 64
   });
 }
 
-// ===== 报名流程 Step 2: 选职业 =====
+// ===== Step 2: 选职业（不调云函数，直接返回） =====
 
 async function stepRole(hourStr) {
   return update({
     content: '**选择职业：**',
-    components: [{
-      type: 1,
-      components: [
-        { type: 2, style: 1, label: '🔵 输出', custom_id: 'signup_role:' + hourStr + ':输出' },
-        { type: 2, style: 3, label: '🟢 霖霖', custom_id: 'signup_role:' + hourStr + ':霖霖' }
-      ]
-    }]
+    components: [{ type: 1, components: [
+      { type: 2, style: 1, label: '🔵 输出', custom_id: 'signup_role:' + hourStr + ':输出' },
+      { type: 2, style: 3, label: '🟢 霖霖', custom_id: 'signup_role:' + hourStr + ':霖霖' }
+    ] }]
   });
 }
 
-// ===== 报名流程 Step 3: 每周自动？ =====
+// ===== Step 3: 每周自动（不调云函数，直接返回） =====
 
 async function stepRecurring(hourStr, role) {
   var emoji = role === '霖霖' ? '🟢' : '🔵';
   return update({
     content: '**职业：' + emoji + role + '**\n每周自动报名此时段？',
-    components: [{
-      type: 1,
-      components: [
-        { type: 2, style: 1, label: '每周自动', custom_id: 'signup_done:' + hourStr + ':' + role + ':yes' },
-        { type: 2, style: 2, label: '仅本周', custom_id: 'signup_done:' + hourStr + ':' + role + ':no' }
-      ]
-    }]
+    components: [{ type: 1, components: [
+      { type: 2, style: 1, label: '每周自动', custom_id: 'signup_done:' + hourStr + ':' + role + ':yes' },
+      { type: 2, style: 2, label: '仅本周', custom_id: 'signup_done:' + hourStr + ':' + role + ':no' }
+    ] }]
   });
 }
 
-// ===== 报名流程 Step 4: 完成 =====
+// ===== Step 4: 完成报名 =====
 
 async function finishSignup(userId, displayName, hourStr, role, recurring) {
   var weekDate = getCurrentSunday();
@@ -245,45 +270,29 @@ async function finishSignup(userId, displayName, hourStr, role, recurring) {
     + (recurring ? '（每周自动）' : '');
 
   var board = await buildBoardEmbed(weekDate);
-
-  // 更新交互消息为确认（ephemeral）
-  // 同时发一条公开消息到频道
   return update({ content: msg, embeds: [board], components: [] });
 }
 
-// ===== 挪动流程 =====
+// ===== 挪动 =====
 
 async function startMove(userId, displayName) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
-
   var counts = await getSlotCounts(weekDate);
 
   var lines = HOURS.map(function(h) {
-    var count = counts[h] || 0;
-    return discordTime(weekDate, h) + ' — ' + (count || 0) + '人';
+    return discordTime(weekDate, h) + ' — ' + (counts[h] || 0) + '人';
   });
 
   var options = HOURS.map(function(h, i) {
-    var count = counts[h] || 0;
-    return {
-      label: '第' + (i + 1) + '场 (' + count + '人)',
-      value: String(h),
-      description: h + ':00 PT'
-    };
+    return { label: '第' + (i + 1) + '场 (' + (counts[h] || 0) + '人)', value: String(h), description: h + ':00 PT' };
   });
 
   return replyRich({
     content: '**选择要挪到的时段：**\n' + lines.join('\n'),
-    components: [{
-      type: 1,
-      components: [{
-        type: 3,
-        custom_id: 'move_time',
-        placeholder: '选择目标时段...',
-        options: options
-      }]
-    }],
+    components: [{ type: 1, components: [{
+      type: 3, custom_id: 'move_time', placeholder: '选择目标时段...', options: options
+    }] }],
     flags: 64
   });
 }
@@ -301,8 +310,7 @@ async function finishMove(userId, displayName, hourStr) {
   var board = await buildBoardEmbed(weekDate);
   return update({
     content: '🔄 **' + displayName + '** 挪到了 ' + discordTime(weekDate, targetHour),
-    embeds: [board],
-    components: []
+    embeds: [board], components: []
   });
 }
 
@@ -337,7 +345,6 @@ async function buildBoardEmbed(weekDate) {
 
   var title = '🏯 燕云十六声 · 百业十人本';
   var firstDate = '<t:' + pdtToUnix(weekDate, 14) + ':D>';
-  var description = '📅 ' + firstDate;
 
   var byHour = {};
   var totalPeople = 0;
@@ -348,7 +355,6 @@ async function buildBoardEmbed(weekDate) {
   });
 
   var fields = [];
-
   HOURS.forEach(function(hour) {
     var cars = byHour[hour];
     if (!cars || cars.length === 0) return;
@@ -363,8 +369,7 @@ async function buildBoardEmbed(weekDate) {
     });
     fields.push({
       name: '🕐 ' + discordTime(weekDate, hour) + ' 本地时间',
-      value: lines.join('\n'),
-      inline: false
+      value: lines.join('\n'), inline: false
     });
   });
 
@@ -374,9 +379,8 @@ async function buildBoardEmbed(weekDate) {
 
   return {
     title: title,
-    description: description + '  |  共 ' + totalPeople + ' 人',
-    color: 0xf0b429,
-    fields: fields,
+    description: '📅 ' + firstDate + '  |  共 ' + totalPeople + ' 人',
+    color: 0xf0b429, fields: fields,
     footer: { text: '/报名 加入 · /退出 离开 · /挪动 换时段 · /看板 刷新' }
   };
 }
