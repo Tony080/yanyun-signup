@@ -85,10 +85,21 @@ function getCurrentSunday() {
   return result.getFullYear() + '-' + pad(result.getMonth() + 1) + '-' + pad(result.getDate());
 }
 
-function pdtToLocal(pdtDateStr, pdtHour) {
+// 返回 Unix 时间戳（秒）
+function pdtToUnix(pdtDateStr, pdtHour) {
   var p = pdtDateStr.split('-');
-  var dt = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], pdtHour - PDT_OFFSET, 0, 0));
-  return WEEKDAYS[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00';
+  return Math.floor(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], pdtHour - PDT_OFFSET, 0, 0)).getTime() / 1000);
+}
+
+// Discord 时间戳格式，每个用户自动看到自己的本地时间
+function discordTime(pdtDateStr, pdtHour) {
+  var ts = pdtToUnix(pdtDateStr, pdtHour);
+  return '<t:' + ts + ':t>';  // :t = 短时间格式 如 "5:00 AM"
+}
+
+function discordTimeFull(pdtDateStr, pdtHour) {
+  var ts = pdtToUnix(pdtDateStr, pdtHour);
+  return '<t:' + ts + ':f>';  // :f = 完整格式 如 "April 6, 2026 5:00 AM"
 }
 
 // ===== 调云函数 =====
@@ -119,9 +130,8 @@ async function handleJoin(userId, displayName, opts) {
 
   if (!res.success) return { content: '❌ ' + res.message };
 
-  var localTime = pdtToLocal(weekDate, hour);
   var emoji = role === '霖霖' ? '🟢' : '🔵';
-  var content = '✅ **' + displayName + '** 报名了 ' + localTime + ' 第' + (res.carIndex + 1) + '车 ' + emoji + role;
+  var content = '✅ **' + displayName + '** 报名了 ' + discordTime(weekDate, hour) + ' 第' + (res.carIndex + 1) + '车 ' + emoji + role;
 
   var board = await buildBoardEmbed(weekDate);
   return { content: content, embeds: [board] };
@@ -148,9 +158,8 @@ async function handleMove(userId, displayName, opts) {
 
   if (!res.success) return { content: '❌ ' + res.message };
 
-  var localTime = pdtToLocal(weekDate, targetHour);
   var board = await buildBoardEmbed(weekDate);
-  return { content: '🔄 **' + displayName + '** 挪到了 ' + localTime, embeds: [board] };
+  return { content: '🔄 **' + displayName + '** 挪到了 ' + discordTime(weekDate, targetHour), embeds: [board] };
 }
 
 async function handleBoard() {
@@ -193,7 +202,6 @@ async function buildBoardEmbed(weekDate) {
     if (!cars || cars.length === 0) return;
 
     cars.sort(function(a, b) { return a.carIndex - b.carIndex; });
-    var localTime = pdtToLocal(weekDate, hour);
     var lines = [];
 
     cars.forEach(function(car) {
@@ -206,7 +214,7 @@ async function buildBoardEmbed(weekDate) {
     });
 
     fields.push({
-      name: '🕐 ' + localTime + '  (PDT ' + hour + ':00)',
+      name: '🕐 ' + discordTime(weekDate, hour) + '  (PDT ' + hour + ':00)',
       value: lines.join('\n'),
       inline: false
     });
