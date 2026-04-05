@@ -9,7 +9,7 @@ var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
 
 // ===== 入口 =====
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   // 验证签名
