@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>燕云十六声 · 百业十人本</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px; min-height: 100vh; padding: 12px; max-width: 500px; margin: 0 auto;
+}
+.header {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid rgba(240,180,41,0.15);
+}
+.title-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.title { font-size: 20px; font-weight: bold; color: #f0b429; }
+.subtitle { font-size: 14px; color: #8b949e; }
+.week-badge {
+  display: inline-block; background: rgba(240,180,41,0.12); color: #f0b429;
+  padding: 4px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 4px;
+}
+.pdt-note { font-size: 11px; color: #6e7681; margin-bottom: 12px; }
+.nickname-row { display: flex; align-items: center; gap: 8px; }
+.nickname-row label { font-size: 13px; color: #8b949e; flex-shrink: 0; }
+.nickname-row input {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 6px 10px; color: #e6edf3; font-size: 14px; outline: none;
+}
+.nickname-row input:focus { border-color: rgba(240,180,41,0.4); }
+.save-btn, .action-btn {
+  flex-shrink: 0; border: none; border-radius: 6px; padding: 6px 14px;
+  font-size: 12px; font-weight: bold; cursor: pointer;
+}
+.save-btn { background: #f0b429; color: #0d1117; display: none; }
+.save-btn.show { display: block; }
+.recovery-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; gap: 8px;
+}
+.recovery-label { font-size: 11px; color: #6e7681; }
+.recovery-label strong { color: #f0b429; font-size: 13px; letter-spacing: 1px; }
+.recover-btn {
+  flex-shrink: 0; background: rgba(255,255,255,0.06); color: #8b949e; border: 1px solid #21262d;
+  border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer;
+}
+.status-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.cal-btn {
+  background: rgba(56,139,253,0.15); color: #58a6ff; padding: 6px 12px;
+  border-radius: 6px; font-size: 12px; border: 1px solid rgba(56,139,253,0.3); cursor: pointer;
+}
+
+.my-status {
+  background: rgba(35,134,54,0.15); border: 1px solid rgba(35,134,54,0.3);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+}
+.status-top { display: flex; align-items: center; justify-content: space-between; }
+.status-left { display: flex; align-items: center; gap: 6px; }
+.status-icon { font-size: 16px; }
+.status-text { color: #3fb950; font-size: 14px; }
+.leave-btn {
+  background: rgba(248,81,73,0.15); color: #f85149; padding: 6px 14px;
+  border-radius: 6px; font-size: 12px; border: 1px solid rgba(248,81,73,0.3); cursor: pointer;
+}
+
+.recurring-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; cursor: pointer;
+}
+.recurring-on { background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.25); }
+.recurring-off { background: rgba(255,255,255,0.03); border: 1px solid #21262d; }
+.recurring-toggle { display: flex; align-items: center; gap: 8px; }
+.toggle-dot {
+  width: 22px; height: 14px; border-radius: 7px; background: #484f58;
+  display: flex; align-items: center; padding: 0 2px; transition: all 0.2s;
+}
+.toggle-dot.on { background: #238636; justify-content: flex-end; }
+.dot-inner { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.recurring-label { font-size: 12px; color: #c9d1d9; }
+.recurring-hint { font-size: 11px; color: #3fb950; }
+.recurring-hint-off { font-size: 11px; color: #484f58; }
+
+.notify-bar {
+  display: none; /* 网页版无订阅通知 */
+}
+
+.slot-block { margin-bottom: 16px; }
+.slot-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.hour-info { display: flex; align-items: baseline; gap: 6px; }
+.hour-text { font-size: 18px; font-weight: bold; }
+.total-count { font-size: 12px; color: #8b949e; }
+.join-btn { background: #238636; color: #fff; }
+.move-btn { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+.current-badge {
+  background: rgba(240,180,41,0.12); color: #f0b429;
+  padding: 6px 12px; border-radius: 6px; font-size: 12px;
+}
+.cars-area { display: flex; flex-direction: column; gap: 8px; }
+.car-card {
+  background: #161b22; border-radius: 10px; padding: 12px; border: 1px solid #21262d;
+}
+.car-card.full { border-color: rgba(240,180,41,0.3); }
+.car-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.car-name { font-size: 13px; color: #8b949e; }
+.car-count { font-size: 12px; color: #8b949e; }
+.car-bar { height: 3px; background: #21262d; border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+.car-bar-fill { height: 100%; background: #238636; border-radius: 2px; transition: width 0.3s; }
+.car-bar-fill.bar-full { background: #f0b429; }
+.members { display: flex; flex-wrap: wrap; gap: 6px; }
+.member { padding: 4px 10px; border-radius: 4px; font-size: 12px; border: 1px solid transparent; }
+.member.role-output { background: rgba(56,139,253,0.12); color: #79c0ff; border-color: rgba(56,139,253,0.25); }
+.member.role-linlin { background: rgba(63,185,80,0.12); color: #7ee787; border-color: rgba(63,185,80,0.25); }
+.member.me.role-output { background: rgba(56,139,253,0.25); border-color: #58a6ff; }
+.member.me.role-linlin { background: rgba(63,185,80,0.25); border-color: #3fb950; }
+.role-picker { display: flex; gap: 8px; margin-bottom: 12px; justify-content: center; }
+.role-btn { padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; border: 2px solid transparent; }
+.role-btn.blue { background: rgba(56,139,253,0.15); color: #79c0ff; }
+.role-btn.green { background: rgba(63,185,80,0.15); color: #7ee787; }
+.role-btn.selected.blue { border-color: #58a6ff; background: rgba(56,139,253,0.3); }
+.role-btn.selected.green { border-color: #3fb950; background: rgba(63,185,80,0.3); }
+.empty-hint {
+  text-align: center; padding: 16px; color: #484f58; font-size: 13px;
+  background: #161b22; border-radius: 10px; border: 1px dashed #21262d;
+}
+.footer { text-align: center; padding: 20px 0 30px; }
+.footer-text { display: block; font-size: 11px; color: #484f58; line-height: 1.8; }
+.loading { text-align: center; padding: 40px; color: #8b949e; }
+.toast {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 8px;
+  font-size: 14px; z-index: 100; display: none;
+}
+.modal-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6);
+  z-index: 50; display: none; align-items: center; justify-content: center;
+}
+.modal-mask.show { display: flex; }
+.modal-box {
+  background: #1a1a2e; border-radius: 12px; padding: 24px; width: 280px; text-align: center;
+}
+.modal-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+.modal-content { font-size: 14px; color: #8b949e; margin-bottom: 16px; white-space: pre-line; }
+.modal-btns { display: flex; gap: 10px; }
+.modal-btns button {
+  flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.modal-cancel { background: #21262d; color: #c9d1d9; }
+.modal-confirm { background: #238636; color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="app"><div class="loading">加载中...</div></div>
+
+<div class="modal-mask" id="rolePicker">
+  <div class="modal-box">
+    <div class="modal-title">选择职业</div>
+    <div class="role-picker">
+      <div class="role-btn blue selected" id="roleOutput">输出</div>
+      <div class="role-btn green" id="roleLinlin">霖霖</div>
+    </div>
+    <button class="modal-cancel" id="roleCancel" style="width:100%;padding:10px;border:none;border-radius:8px;cursor:pointer">取消</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal-mask" id="modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-content" id="modalContent"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" id="modalCancel"></button>
+      <button class="modal-confirm" id="modalConfirm"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+
+// ===== 配置 =====
+var PDT_OFFSET = -7;
+var SLOT_HOURS = [14,15,16,17,18,19,20,21,22];
+var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
+
+// ===== 状态 =====
+var state = {
+  userId: '',
+  nickname: '',
+  recoveryCode: '',
+  weekDate: '',
+  weekLabel: '',
+  pdtLabel: '',
+  timeSlots: [],
+  slotsMap: {},
+  myRegistration: null,
+  isRecurring: false,
+  recurringHour: null,
+  recurringLocalDisplay: '',
+  loading: true,
+  actionLoading: false
+};
+
+// ===== 初始化 =====
+async function init() {
+  // 用户 ID: 优先 localStorage，否则生成
+  state.userId = localStorage.getItem('yanyun_uid');
+  if (!state.userId) {
+    state.userId = 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('yanyun_uid', state.userId);
+  }
+
+  // 昵称: 优先 localStorage
+  var savedNick = localStorage.getItem('yanyun_nick');
+
+  try {
+    var res = await callFunction('login', {
+      userId: state.userId,
+      nickname: savedNick || undefined
+    });
+    state.nickname = res.nickname;
+    state.recoveryCode = res.recoveryCode || '';
+    state.recurringHour = res.recurringHour;
+    state.isRecurring = res.recurringHour != null;
+    localStorage.setItem('yanyun_nick', state.nickname);
+  } catch (e) {
+    console.error('login failed', e);
+    state.nickname = savedNick || '访客' + state.userId.slice(-4);
+  }
+
+  // 计算周日
+  state.weekDate = getCurrentSunday();
+  buildTimeSlots();
+  state.recurringLocalDisplay = state.recurringHour != null ? pdtToLocal(state.weekDate, state.recurringHour).display : '';
+
+  await loadSlots();
+  state.loading = false;
+  render();
+}
+
+// ===== 云函数调用（通过 Vercel API 中转到微信云函数）=====
+async function callFunction(name, data) {
+  data = data || {};
+  data.userId = state.userId;
+  var res = await fetch('/api/cloud', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ functionName: name, data: data })
+  });
+  if (!res.ok) {
+    var err = await res.json().catch(function() { return { error: res.statusText }; });
+    throw new Error(err.error || '请求失败');
+  }
+  return await res.json();
+}
+
+// ===== 时区工具 =====
+function getPDTNow() {
+  var now = new Date();
+  var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utcMs + PDT_OFFSET * 3600000);
+}
+
+function getCurrentSunday() {
+  var pdtNow = getPDTNow();
+  var day = pdtNow.getDay();
+  var result = new Date(pdtNow);
+  if (day === 0) {
+    if (pdtNow.getHours() >= 23) result.setDate(result.getDate() + 7);
+  } else {
+    result.setDate(result.getDate() + (7 - day));
+  }
+  return fmtDate(result);
+}
+
+function pdtToLocal(pdtDateStr, pdtHour) {
+  var p = pdtDateStr.split('-');
+  var dt = new Date(Date.UTC(+p[0], +p[1]-1, +p[2], pdtHour - PDT_OFFSET, 0, 0));
+  return {
+    display: WEEKDAYS[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00',
+    short: pad(dt.getHours()) + ':00',
+    dateLabel: (dt.getMonth()+1) + '月' + dt.getDate() + '日'
+  };
+}
+
+function fmtDate(d) {
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function buildTimeSlots() {
+  state.timeSlots = SLOT_HOURS.map(function(h) {
+    var l = pdtToLocal(state.weekDate, h);
+    return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
+  });
+  var f = state.timeSlots[0], la = state.timeSlots[state.timeSlots.length-1];
+  state.weekLabel = f.dateLabel + ' ' + f.display + ' - ' + la.short;
+  var pp = state.weekDate.split('-');
+  state.pdtLabel = '美西 ' + (+pp[1]) + '月' + (+pp[2]) + '日 周日 14:00-22:00';
+}
+
+// ===== 数据加载 =====
+async function loadSlots() {
+  try {
+    var res = await callFunction('api', { action: 'getSlots', weekDate: state.weekDate });
+    if (!res.success) return;
+    var slotsMap = {};
+    state.myRegistration = null;
+    res.slots.forEach(function(slot) {
+      var h = slot.hour;
+      if (!slotsMap[h]) slotsMap[h] = { cars: [], totalCount: 0 };
+      slotsMap[h].cars.push(slot);
+      slotsMap[h].totalCount += slot.count;
+      if (slot.members.some(function(m) { return m.openid === state.userId; })) {
+        state.myRegistration = {
+          hour: h, carIndex: slot.carIndex, slotId: slot._id,
+          localDisplay: pdtToLocal(state.weekDate, h).display
+        };
+      }
+    });
+    for (var k in slotsMap) slotsMap[k].cars.sort(function(a,b){ return a.carIndex - b.carIndex; });
+    state.slotsMap = slotsMap;
+  } catch (e) { console.error('loadSlots', e); }
+}
+
+// ===== 操作 =====
+async function handleJoin(pdtHour) {
+  if (state.actionLoading) return;
+  var display = pdtToLocal(state.weekDate, pdtHour).display;
+
+  // 1. 选职业
+  var role = await showRolePicker();
+  if (!role) return; // 取消
+
+  // 2. 每周自动？
+  var recurring = await showModal('报名 ' + display, '职业：' + role + '\n每周自动报名此时段？', '每周自动', '仅本周');
+
+  state.actionLoading = true; render();
+  try {
+    var res = await callFunction('api', {
+      action: 'join', weekDate: state.weekDate, hour: pdtHour,
+      nickname: state.nickname, role: role, recurring: recurring
+    });
+    if (res.success) {
+      if (recurring) { state.isRecurring = true; state.recurringHour = pdtHour; state.recurringLocalDisplay = display; }
+      showToast('已报名 ' + display + (recurring ? '（每周自动）' : ''));
+      await loadSlots();
+    } else { showToast(res.message); }
+  } catch (e) { showToast('操作失败'); }
+  state.actionLoading = false; render();
+}
+
+async function handleLeave() {
+  if (state.actionLoading) return;
+  var msg = '确定要退出本周报名吗？';
+  if (!await showModal('确认退出', msg, '确定', '取消')) return;
+  state.actionLoading = true; render();
+  try {
+    var res = await callFunction('api', { action: 'leave', weekDate: state.weekDate });
+    if (res.success) { showToast('已退出报名'); await loadSlots(); }
+    else { showToast(res.message); }
+  } catch (e) { showToast('操作失败'); }
+  state.actionLoading = false; render();
+}
+
+async function handleMove(pdtHour) {
+  if (state.actionLoading) return;
+  var from = state.myRegistration.localDisplay;
+  var to = pdtToLocal(state.weekDate, pdtHour).display;
+  var extra = state.isRecurring ? '\n每周自动报名也会跟着改' : '';
+  if (!await showModal('确认挪动', '从 ' + from + ' 挪到 ' + to + '？' + extra, '确定', '取消')) return;
+  state.actionLoading = true; render();
+  try {
+    var res = await callFunction('api', { action: 'move', weekDate: state.weekDate, targetHour: pdtHour, nickname: state.nickname });
+    if (res.success) {
+      if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringLocalDisplay = to; }
+      showToast('已挪到 ' + to); await loadSlots();
+    } else { showToast(res.message); }
+  } catch (e) { showToast('操作失败'); }
+  state.actionLoading = false; render();
+}
+
+async function saveNickname() {
+  var input = document.getElementById('nickInput');
+  var trimmed = (input.value || '').trim().slice(0, 12);
+  if (!trimmed || trimmed === state.nickname) return;
+  try {
+    await callFunction('api', { action: 'updateNickname', nickname: trimmed });
+    state.nickname = trimmed;
+    localStorage.setItem('yanyun_nick', trimmed);
+    showToast('昵称已更新');
+    await loadSlots(); render();
+  } catch (e) { showToast('更新失败'); }
+}
+
+async function toggleRecurring() {
+  var newVal = !state.isRecurring;
+  if (newVal && !state.myRegistration) { showToast('请先报名一个时段'); return; }
+  var hour = newVal ? state.myRegistration.hour : null;
+  try {
+    await callFunction('api', { action: 'setRecurring', hour: hour });
+    state.isRecurring = newVal;
+    state.recurringHour = hour;
+    state.recurringLocalDisplay = hour != null ? pdtToLocal(state.weekDate, hour).display : '';
+    showToast(newVal ? '已开启每周自动' : '已取消每周自动');
+    render();
+  } catch (e) { showToast('操作失败'); }
+}
+
+// ===== 恢复账号 =====
+async function handleRecover() {
+  var code = prompt('输入你的6位恢复码：');
+  if (!code) return;
+  try {
+    var res = await fetch('/api/cloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ functionName: 'login', data: { action: 'recover', code: code } })
+    }).then(function(r) { return r.json(); });
+    if (res.success) {
+      state.userId = res.openid;
+      state.nickname = res.nickname;
+      state.recoveryCode = res.recoveryCode;
+      state.recurringHour = res.recurringHour;
+      state.isRecurring = res.recurringHour != null;
+      localStorage.setItem('yanyun_uid', res.openid);
+      localStorage.setItem('yanyun_nick', res.nickname);
+      showToast('恢复成功！欢迎回来 ' + res.nickname);
+      await loadSlots();
+      render();
+    } else {
+      showToast(res.message || '恢复码无效');
+    }
+  } catch (e) { showToast('恢复失败'); }
+}
+
+// ===== Google Calendar =====
+function openGoogleCalendar() {
+  var reg = state.myRegistration;
+  if (!reg) return;
+  var pp = state.weekDate.split('-');
+  var y = +pp[0], m = +pp[1], d = +pp[2];
+  var utcStart = new Date(Date.UTC(y, m-1, d, reg.hour - PDT_OFFSET, 0, 0));
+  var utcEnd = new Date(utcStart.getTime() + 3600000); // +1 hour
+  function gcalFmt(dt) {
+    return dt.getUTCFullYear()
+      + pad(dt.getUTCMonth()+1) + pad(dt.getUTCDate())
+      + 'T' + pad(dt.getUTCHours()) + pad(dt.getUTCMinutes()) + '00Z';
+  }
+  var title = encodeURIComponent('燕云十六声 百业十人本');
+  var details = encodeURIComponent('第' + (reg.carIndex+1) + '车 ' + reg.localDisplay);
+  var dates = gcalFmt(utcStart) + '/' + gcalFmt(utcEnd);
+  var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + title + '&dates=' + dates + '&details=' + details;
+  window.open(url, '_blank');
+}
+
+// ===== 职业选择 =====
+function showRolePicker() {
+  return new Promise(function(resolve) {
+    var mask = document.getElementById('rolePicker');
+    mask.classList.add('show');
+    document.getElementById('roleOutput').onclick = function() { mask.classList.remove('show'); resolve('输出'); };
+    document.getElementById('roleLinlin').onclick = function() { mask.classList.remove('show'); resolve('霖霖'); };
+    document.getElementById('roleCancel').onclick = function() { mask.classList.remove('show'); resolve(null); };
+  });
+}
+
+// ===== UI 工具 =====
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 2000);
+}
+
+function showModal(title, content, confirmText, cancelText) {
+  return new Promise(function(resolve) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalContent').textContent = content;
+    document.getElementById('modalConfirm').textContent = confirmText;
+    document.getElementById('modalCancel').textContent = cancelText;
+    var mask = document.getElementById('modal');
+    mask.classList.add('show');
+    document.getElementById('modalConfirm').onclick = function() { mask.classList.remove('show'); resolve(true); };
+    document.getElementById('modalCancel').onclick = function() { mask.classList.remove('show'); resolve(false); };
+  });
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ===== 渲染 =====
+function render() {
+  var s = state;
+  if (s.loading) { document.getElementById('app').innerHTML = '<div class="loading">加载中...</div>'; return; }
+
+  var html = '';
+
+  // 头部
+  html += '<div class="header">';
+  html += '<div class="title-row"><span class="title">燕云十六声</span><span class="subtitle">百业十人本报名</span></div>';
+  html += '<div class="week-badge">' + esc(s.weekLabel) + '</div>';
+  html += '<div class="pdt-note">' + esc(s.pdtLabel) + '</div>';
+  html += '<div class="nickname-row"><label>角色名</label>';
+  html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
+  html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
+  html += '</div>';
+  // 恢复码 + 恢复按钮
+  html += '<div class="recovery-row">';
+  if (s.recoveryCode) {
+    html += '<span class="recovery-label">恢复码：<strong>' + esc(s.recoveryCode) + '</strong>（换设备时用）</span>';
+  }
+  html += '<button class="recover-btn" onclick="window._recover()">恢复账号</button>';
+  html += '</div>';
+  html += '</div>';
+
+  // 我的状态
+  if (s.myRegistration) {
+    html += '<div class="my-status"><div class="status-top">';
+    html += '<div class="status-left"><span class="status-icon">✅</span>';
+    html += '<span class="status-text">已报名 ' + esc(s.myRegistration.localDisplay) + ' 第' + (s.myRegistration.carIndex+1) + '车</span></div>';
+    html += '<div class="status-btns">';
+    html += '<button class="cal-btn" onclick="window._gcal()">添加到日历</button>';
+    html += '<button class="leave-btn" onclick="window._leave()">退出</button>';
+    html += '</div></div></div>';
+  }
+
+  // 每周自动
+  html += '<div class="recurring-bar ' + (s.isRecurring ? 'recurring-on' : 'recurring-off') + '" onclick="window._toggleRec()">';
+  html += '<div class="recurring-toggle"><div class="toggle-dot ' + (s.isRecurring ? 'on' : '') + '"><div class="dot-inner"></div></div>';
+  html += '<span class="recurring-label">每周自动报名</span></div>';
+  if (s.isRecurring && s.recurringLocalDisplay) html += '<span class="recurring-hint">' + esc(s.recurringLocalDisplay) + '</span>';
+  if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
+  html += '</div>';
+
+  // 时间段
+  html += '<div class="time-slots">';
+  s.timeSlots.forEach(function(slot) {
+    var data = s.slotsMap[slot.pdtHour];
+    html += '<div class="slot-block">';
+    html += '<div class="slot-header"><div class="hour-info">';
+    html += '<span class="hour-text">' + esc(slot.display) + '</span>';
+    if (data) html += '<span class="total-count">' + data.totalCount + '人</span>';
+    html += '</div><div>';
+
+    if (!s.myRegistration && !s.actionLoading) {
+      html += '<button class="action-btn join-btn" onclick="window._join(' + slot.pdtHour + ')">报名</button>';
+    } else if (s.myRegistration && s.myRegistration.hour !== slot.pdtHour && !s.actionLoading) {
+      html += '<button class="action-btn move-btn" onclick="window._move(' + slot.pdtHour + ')">挪到这里</button>';
+    } else if (s.myRegistration && s.myRegistration.hour === slot.pdtHour) {
+      html += '<span class="current-badge">当前</span>';
+    }
+
+    html += '</div></div>';
+
+    // 车辆
+    html += '<div class="cars-area">';
+    if (data && data.cars.length > 0) {
+      data.cars.forEach(function(car) {
+        html += '<div class="car-card ' + (car.full ? 'full' : '') + '">';
+        html += '<div class="car-top"><span class="car-name">第' + (car.carIndex+1) + '车</span>';
+        html += '<span class="car-count">' + car.count + '/10</span></div>';
+        html += '<div class="car-bar"><div class="car-bar-fill ' + (car.full ? 'bar-full' : '') + '" style="width:' + (car.count*10) + '%"></div></div>';
+        html += '<div class="members">';
+        car.members.forEach(function(m) {
+          var roleClass = m.role === '霖霖' ? 'role-linlin' : 'role-output';
+          html += '<span class="member ' + (m.openid === s.userId ? 'me' : '') + ' ' + roleClass + '">' + esc(m.nickname) + '</span>';
+        });
+        html += '</div></div>';
+      });
+    } else {
+      html += '<div class="empty-hint">虚位以待</div>';
+    }
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // 底部
+  html += '<div class="footer">';
+  html += '<span class="footer-text">每周自动刷新 | 每人每周限报一个时段 | 10人满开新车</span>';
+  html += '<span class="footer-text">时间已自动转换为你的本地时区</span>';
+  html += '</div>';
+
+  document.getElementById('app').innerHTML = html;
+
+  // 昵称输入监听
+  var nickInput = document.getElementById('nickInput');
+  var saveBtn = document.getElementById('saveNickBtn');
+  if (nickInput && saveBtn) {
+    nickInput.addEventListener('input', function() {
+      saveBtn.classList.toggle('show', nickInput.value.trim() !== s.nickname);
+    });
+  }
+}
+
+// 全局事件绑定
+window._join = handleJoin;
+window._leave = handleLeave;
+window._move = handleMove;
+window._saveNick = saveNickname;
+window._toggleRec = toggleRecurring;
+window._recover = handleRecover;
+window._gcal = openGoogleCalendar;
+
+// 启动
+init();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<view class="container">
+  <!-- 头部信息 -->
+  <view class="header">
+    <view class="title-row">
+      <text class="title">燕云十六声</text>
+      <text class="subtitle">百业十人本报名</text>
+    </view>
+    <view class="week-badge">{{weekLabel}}</view>
+    <view class="pdt-note">{{pdtLabel}}</view>
+    <view class="nickname-row">
+      <text class="label">角色名</text>
+      <input class="nickname-input" value="{{nicknameInput}}"
+             bindinput="onNicknameInput" bindconfirm="saveNickname"
+             placeholder="输入角色名" maxlength="12" />
+      <view class="save-btn" bindtap="saveNickname"
+            wx:if="{{nicknameInput !== nickname}}">保存</view>
+    </view>
+  </view>
+
+  <!-- 我的报名状态 -->
+  <view class="my-status" wx:if="{{myRegistration}}">
+    <view class="status-top">
+      <view class="status-left">
+        <text class="status-icon">✅</text>
+        <text class="status-text">已报名 {{myRegistration.localDisplay}} 第{{myRegistration.carIndex + 1}}车</text>
+      </view>
+      <view class="leave-btn" bindtap="handleLeave">退出</view>
+    </view>
+  </view>
+
+  <!-- 每周自动（独立显示，不依赖当前是否报名） -->
+  <view class="recurring-bar {{isRecurring ? 'recurring-on' : 'recurring-off'}}">
+    <view class="recurring-toggle" bindtap="toggleRecurring">
+      <view class="toggle-dot {{isRecurring ? 'toggle-on' : ''}}">
+        <view class="dot-inner"></view>
+      </view>
+      <text class="recurring-label">每周自动报名</text>
+    </view>
+    <text class="recurring-hint" wx:if="{{isRecurring && recurringLocalDisplay}}">{{recurringLocalDisplay}}</text>
+    <text class="recurring-hint-off" wx:if="{{!isRecurring}}">关闭</text>
+  </view>
+
+  <!-- 通知订阅 -->
+  <view class="notify-bar" bindtap="subscribeNotify">
+    <text class="notify-text">开启开车前30分钟提醒</text>
+    <text class="notify-arrow">></text>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading-box" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 时间段列表 -->
+  <view class="time-slots" wx:if="{{!loading}}">
+    <view class="slot-block" wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
+      <view class="slot-header">
+        <view class="hour-info">
+          <text class="hour-text">{{slot.display}}</text>
+          <text class="total-count" wx:if="{{slotsMap[slot.pdtHour]}}">
+            {{slotsMap[slot.pdtHour].totalCount}}人
+          </text>
+        </view>
+        <view class="slot-actions">
+          <view class="action-btn join-btn" bindtap="handleJoin"
+                data-hour="{{slot.pdtHour}}" wx:if="{{!myRegistration && !actionLoading}}">
+            报名
+          </view>
+          <view class="action-btn move-btn" bindtap="handleMove"
+                data-hour="{{slot.pdtHour}}"
+                wx:if="{{myRegistration && myRegistration.hour !== slot.pdtHour && !actionLoading}}">
+            挪到这里
+          </view>
+          <view class="current-badge"
+                wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour}}">
+            当前
+          </view>
+        </view>
+      </view>
+
+      <view class="cars-area">
+        <block wx:if="{{slotsMap[slot.pdtHour] && slotsMap[slot.pdtHour].cars.length > 0}}">
+          <view class="car-card {{car.full ? 'car-full' : ''}}"
+                wx:for="{{slotsMap[slot.pdtHour].cars}}" wx:key="carIndex" wx:for-item="car">
+            <view class="car-top">
+              <text class="car-name">第{{car.carIndex + 1}}车</text>
+              <text class="car-count">{{car.count}}/10</text>
+            </view>
+            <view class="car-bar">
+              <view class="car-bar-fill {{car.full ? 'bar-full' : ''}}"
+                    style="width: {{car.count * 10}}%"></view>
+            </view>
+            <view class="members">
+              <view class="member {{item.openid === openid ? 'member-me' : ''}} {{item.role === '霖霖' ? 'role-linlin' : 'role-output'}}"
+                    wx:for="{{car.members}}" wx:key="openid">
+                {{item.nickname}}
+              </view>
+            </view>
+          </view>
+        </block>
+        <view class="empty-hint" wx:else>
+          <text>虚位以待</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部说明 -->
+  <view class="footer">
+    <text class="footer-text">每周自动刷新 | 每人每周限报一个时段 | 10人满开新车</text>
+    <text class="footer-text">时间已自动转换为你的本地时区</text>
+  </view>
+</view>

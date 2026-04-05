@@ -1,0 +1,15 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#0d1117",
+    "navigationBarTitleText": "燕云十六声 · 百业十人本",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0d1117",
+    "enablePullDownRefresh": false
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

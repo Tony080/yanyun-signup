@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 - 燕云十六声</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px; padding: 16px; max-width: 700px; margin: 0 auto;
+}
+h1 { font-size: 20px; color: #f0b429; margin-bottom: 16px; }
+.login-box { background: #161b22; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.login-box input {
+  background: rgba(255,255,255,0.06); border: 1px solid #21262d; border-radius: 6px;
+  padding: 8px 12px; color: #e6edf3; font-size: 14px; width: 200px; outline: none;
+}
+.login-box input:focus { border-color: rgba(240,180,41,0.4); }
+.login-box button {
+  background: #f0b429; color: #0d1117; border: none; border-radius: 6px;
+  padding: 8px 16px; font-size: 14px; font-weight: bold; cursor: pointer; margin-left: 8px;
+}
+.week-select { margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.week-select input {
+  background: rgba(255,255,255,0.06); border: 1px solid #21262d; border-radius: 6px;
+  padding: 6px 10px; color: #e6edf3; font-size: 14px; outline: none;
+}
+.week-select button {
+  background: #238636; color: #fff; border: none; border-radius: 6px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+.slot-section { margin-bottom: 20px; }
+.slot-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #e6edf3; }
+.car-block { background: #161b22; border-radius: 8px; padding: 12px; margin-bottom: 8px; border: 1px solid #21262d; }
+.car-header { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+.member-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid #21262d;
+}
+.member-row:last-child { border-bottom: none; }
+.member-info { font-size: 13px; }
+.member-info .nick { color: #e6edf3; }
+.member-info .id { color: #484f58; font-size: 11px; margin-left: 6px; }
+.member-info .banned-tag { color: #f85149; font-size: 11px; margin-left: 6px; }
+.member-actions { display: flex; gap: 6px; }
+.member-actions button {
+  border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+}
+.btn-remove { background: rgba(248,81,73,0.15); color: #f85149; }
+.btn-ban { background: rgba(248,81,73,0.3); color: #f85149; }
+.btn-unban { background: rgba(35,134,54,0.15); color: #3fb950; }
+.empty { color: #484f58; padding: 16px; text-align: center; }
+.toast {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 8px;
+  font-size: 14px; z-index: 100; display: none;
+}
+.stats { color: #8b949e; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<h1>燕云十六声 · 管理后台</h1>
+
+<div class="login-box" id="loginBox">
+  <input id="adminPwd" type="password" placeholder="管理密码">
+  <button onclick="doLogin()">登录</button>
+</div>
+
+<div id="adminPanel" style="display:none">
+  <div class="week-select">
+    <span>查看周日：</span>
+    <input id="weekInput" type="date">
+    <button onclick="loadData()">查询</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div id="content"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var PDT_OFFSET = -7;
+var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
+var adminKey = '';
+var currentWeekDate = '';
+var slotsData = [];
+var usersMap = {};
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function pdtToLocal(pdtDateStr, pdtHour) {
+  var p = pdtDateStr.split('-');
+  var dt = new Date(Date.UTC(+p[0], +p[1]-1, +p[2], pdtHour - PDT_OFFSET, 0, 0));
+  return WEEKDAYS[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00';
+}
+
+function getCurrentSunday() {
+  var now = new Date();
+  var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  var pdtNow = new Date(utcMs + PDT_OFFSET * 3600000);
+  var day = pdtNow.getDay();
+  var result = new Date(pdtNow);
+  if (day === 0) {
+    if (pdtNow.getHours() >= 23) result.setDate(result.getDate() + 7);
+  } else {
+    result.setDate(result.getDate() + (7 - day));
+  }
+  return result.getFullYear() + '-' + pad(result.getMonth()+1) + '-' + pad(result.getDate());
+}
+
+async function callApi(action, data) {
+  data = data || {};
+  data.action = action;
+  data.adminKey = adminKey;
+  var res = await fetch('/api/cloud', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ functionName: 'api', data: data })
+  });
+  return await res.json();
+}
+
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 2000);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function doLogin() {
+  adminKey = document.getElementById('adminPwd').value.trim();
+  if (!adminKey) return;
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'block';
+  currentWeekDate = getCurrentSunday();
+  document.getElementById('weekInput').value = currentWeekDate;
+  loadData();
+}
+
+async function loadData() {
+  currentWeekDate = document.getElementById('weekInput').value;
+  if (!currentWeekDate) return;
+
+  var res = await callApi('adminList', { weekDate: currentWeekDate });
+  if (!res.success) { showToast(res.message); return; }
+
+  slotsData = res.slots;
+  usersMap = res.users;
+  renderAdmin();
+}
+
+function renderAdmin() {
+  // Group by hour
+  var byHour = {};
+  var totalPeople = 0;
+  slotsData.forEach(function(slot) {
+    if (!byHour[slot.hour]) byHour[slot.hour] = [];
+    byHour[slot.hour].push(slot);
+    totalPeople += slot.count;
+  });
+
+  var hours = Object.keys(byHour).sort(function(a,b){ return a-b; });
+
+  document.getElementById('stats').textContent =
+    '共 ' + totalPeople + ' 人报名，' + slotsData.length + ' 车';
+
+  if (hours.length === 0) {
+    document.getElementById('content').innerHTML = '<div class="empty">本周暂无报名</div>';
+    return;
+  }
+
+  var html = '';
+  hours.forEach(function(hour) {
+    var localDisplay = pdtToLocal(currentWeekDate, +hour);
+    html += '<div class="slot-section">';
+    html += '<div class="slot-title">' + esc(localDisplay) + ' (PDT ' + hour + ':00)</div>';
+
+    byHour[hour].sort(function(a,b){ return a.carIndex - b.carIndex; });
+    byHour[hour].forEach(function(car) {
+      html += '<div class="car-block">';
+      html += '<div class="car-header">第' + (car.carIndex+1) + '车 (' + car.count + '/10)</div>';
+
+      car.members.forEach(function(m) {
+        var userInfo = usersMap[m.openid] || {};
+        var isBanned = userInfo.banned;
+        html += '<div class="member-row">';
+        html += '<div class="member-info">';
+        html += '<span class="nick">' + esc(m.nickname) + '</span>';
+        html += '<span class="id">' + esc(m.openid.slice(0, 12)) + '...</span>';
+        if (isBanned) html += '<span class="banned-tag">[已封禁]</span>';
+        html += '</div>';
+        html += '<div class="member-actions">';
+        html += '<button class="btn-remove" onclick="removeUser(\'' + esc(m.openid) + '\')">移除</button>';
+        if (isBanned) {
+          html += '<button class="btn-unban" onclick="unbanUser(\'' + esc(m.openid) + '\')">解封</button>';
+        } else {
+          html += '<button class="btn-ban" onclick="banUser(\'' + esc(m.openid) + '\')">封禁</button>';
+        }
+        html += '</div></div>';
+      });
+
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  document.getElementById('content').innerHTML = html;
+}
+
+async function removeUser(openid) {
+  if (!confirm('确定移除该用户本周的报名？')) return;
+  var res = await callApi('adminRemove', { weekDate: currentWeekDate, targetOpenid: openid });
+  showToast(res.message);
+  if (res.success) loadData();
+}
+
+async function banUser(openid) {
+  if (!confirm('确定封禁该用户？封禁后将无法报名。')) return;
+  var res = await callApi('adminBan', { targetOpenid: openid });
+  showToast(res.message);
+  if (res.success) loadData();
+}
+
+async function unbanUser(openid) {
+  var res = await callApi('adminUnban', { targetOpenid: openid });
+  showToast(res.message);
+  if (res.success) loadData();
+}
+
+// Enter 键登录
+document.getElementById('adminPwd').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>
