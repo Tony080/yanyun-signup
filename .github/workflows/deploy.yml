@@ -6,9 +6,6 @@ on:
   workflow_dispatch: # 手动触发
 
 jobs:
-  # Web 版由 Vercel 自动部署（GitHub 集成），这里不需要额外处理
-
-  # 云函数部署
   deploy-cloud-functions:
     runs-on: ubuntu-latest
     steps:
@@ -25,35 +22,46 @@ jobs:
       - name: Login to CloudBase
         run: tcb login --apiKeyId ${{ secrets.TCB_SECRET_ID }} --apiKey ${{ secrets.TCB_SECRET_KEY }}
 
-      - name: Deploy login function
-        run: tcb fn deploy login --envId ${{ secrets.WX_ENV_ID }} --path cloudfunctions/login
+      - name: Deploy login
+        run: tcb fn deploy login --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/login
         continue-on-error: true
 
-      - name: Deploy api function
-        run: tcb fn deploy api --envId ${{ secrets.WX_ENV_ID }} --path cloudfunctions/api
+      - name: Deploy api
+        run: tcb fn deploy api --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/api
         continue-on-error: true
 
-      - name: Deploy remind function
-        run: tcb fn deploy remind --envId ${{ secrets.WX_ENV_ID }} --path cloudfunctions/remind
+      - name: Deploy remind
+        run: tcb fn deploy remind --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/remind
         continue-on-error: true
 
-      - name: Deploy autoRegister function
-        run: tcb fn deploy autoRegister --envId ${{ secrets.WX_ENV_ID }} --path cloudfunctions/autoRegister
+      - name: Deploy autoRegister
+        run: tcb fn deploy autoRegister --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/autoRegister
         continue-on-error: true
 
-  # Discord 命令注册（仅当命令定义文件变更时）
   register-discord-commands:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'web/scripts/register-commands.mjs') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if commands changed
+        id: check
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q 'web/scripts/register-commands.mjs'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Node.js
+        if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Register Discord commands
+        if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         env:
           DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
