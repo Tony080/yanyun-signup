@@ -1,18 +1,16 @@
-// Vercel Serverless: Discord Interaction Endpoint
+// Vercel Serverless: Discord Interaction Endpoint (多轮交互版)
 const nacl = require('tweetnacl');
 const { callCloudFunction } = require('../lib/wxcloud');
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const PDT_OFFSET = -7;
-var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
+var HOURS = [14, 15, 16, 17, 18, 19, 20, 21, 22];
 
 // ===== 入口 =====
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  // 验证签名
   var sig = req.headers['x-signature-ed25519'];
   var ts = req.headers['x-signature-timestamp'];
   var body = JSON.stringify(req.body);
@@ -27,38 +25,80 @@ module.exports = async function handler(req, res) {
   var interaction = req.body;
 
   // PING
-  if (interaction.type === 1) {
-    return res.json({ type: 1 });
-  }
+  if (interaction.type === 1) return res.json({ type: 1 });
 
-  // Slash command
-  if (interaction.type === 2) {
-    var name = interaction.data.name;
-    var opts = parseOptions(interaction.data.options || []);
-    var user = interaction.member ? interaction.member.user : interaction.user;
-    var userId = 'dc_' + user.id;
-    var displayName = interaction.member ? (interaction.member.nick || user.global_name || user.username) : (user.global_name || user.username);
-    var interactionToken = interaction.token;
+  var user = interaction.member ? interaction.member.user : interaction.user;
+  var userId = 'dc_' + user.id;
+  var displayName = interaction.member
+    ? (interaction.member.nick || user.global_name || user.username)
+    : (user.global_name || user.username);
 
-    // 直接处理完再响应（Vercel 函数超时设为25秒，Discord 允许3秒但我们用 type 4 直接回）
-    try {
-      var result;
+  try {
+    // Slash command (type 2)
+    if (interaction.type === 2) {
+      var name = interaction.data.name;
+      var opts = parseOptions(interaction.data.options || []);
+
       switch (name) {
-        case '报名': result = await handleJoin(userId, displayName, opts); break;
-        case '退出': result = await handleLeave(userId); break;
-        case '挪动': result = await handleMove(userId, displayName, opts); break;
-        case '看板': result = await handleBoard(); break;
-        case '改名': result = await handleRename(userId, opts); break;
-        default: result = { content: '未知命令' };
+        case '报名': return res.json(await startSignup(userId, displayName));
+        case '退出': return res.json(await handleLeave(userId));
+        case '挪动': return res.json(await startMove(userId, displayName));
+        case '看板': return res.json(await handleBoard());
+        case '改名': return res.json(await handleRename(userId, opts));
+        default: return res.json(reply('未知命令'));
       }
-      return res.json({ type: 4, data: result });
-    } catch (e) {
-      console.error('[discord]', name, e);
-      return res.json({ type: 4, data: { content: '出错了: ' + e.message } });
     }
+
+    // Component interaction (type 3): 按钮/下拉菜单
+    if (interaction.type === 3) {
+      var customId = interaction.data.custom_id;
+      var values = interaction.data.values || [];
+
+      // 报名流程
+      if (customId === 'signup_time') {
+        return res.json(await stepRole(values[0]));
+      }
+      if (customId.startsWith('signup_role:')) {
+        var parts = customId.split(':');
+        return res.json(await stepRecurring(parts[1], parts[2]));
+      }
+      if (customId.startsWith('signup_done:')) {
+        var parts = customId.split(':');
+        return res.json(await finishSignup(userId, displayName, parts[1], parts[2], parts[3] === 'yes'));
+      }
+
+      // 挪动流程
+      if (customId === 'move_time') {
+        return res.json(await finishMove(userId, displayName, values[0]));
+      }
+
+      return res.json(update({ content: '未知操作' }));
+    }
+  } catch (e) {
+    console.error('[discord]', e);
+    return res.json(reply('出错了: ' + e.message, true));
   }
 
   return res.status(400).end();
+};
+
+// ===== 响应工具 =====
+
+// type 4: 新消息回复
+function reply(content, ephemeral) {
+  var data = { content: content };
+  if (ephemeral) data.flags = 64;
+  return { type: 4, data: data };
+}
+
+// type 4 with components/embeds
+function replyRich(data) {
+  return { type: 4, data: data };
+}
+
+// type 7: 更新当前消息（用于组件交互）
+function update(data) {
+  return { type: 7, data: data };
 }
 
 function parseOptions(opts) {
@@ -67,9 +107,18 @@ function parseOptions(opts) {
   return map;
 }
 
-// ===== 时区 =====
+// ===== 时间工具 =====
 
 function pad(n) { return String(n).padStart(2, '0'); }
+
+function pdtToUnix(pdtDateStr, pdtHour) {
+  var p = pdtDateStr.split('-');
+  return Math.floor(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], pdtHour - PDT_OFFSET, 0, 0)).getTime() / 1000);
+}
+
+function discordTime(pdtDateStr, pdtHour) {
+  return '<t:' + pdtToUnix(pdtDateStr, pdtHour) + ':t>';
+}
 
 function getCurrentSunday() {
   var now = new Date();
@@ -85,24 +134,7 @@ function getCurrentSunday() {
   return result.getFullYear() + '-' + pad(result.getMonth() + 1) + '-' + pad(result.getDate());
 }
 
-// 返回 Unix 时间戳（秒）
-function pdtToUnix(pdtDateStr, pdtHour) {
-  var p = pdtDateStr.split('-');
-  return Math.floor(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], pdtHour - PDT_OFFSET, 0, 0)).getTime() / 1000);
-}
-
-// Discord 时间戳格式，每个用户自动看到自己的本地时间
-function discordTime(pdtDateStr, pdtHour) {
-  var ts = pdtToUnix(pdtDateStr, pdtHour);
-  return '<t:' + ts + ':t>';  // :t = 短时间格式 如 "5:00 AM"
-}
-
-function discordTimeFull(pdtDateStr, pdtHour) {
-  var ts = pdtToUnix(pdtDateStr, pdtHour);
-  return '<t:' + ts + ':f>';  // :f = 完整格式 如 "April 6, 2026 5:00 AM"
-}
-
-// ===== 调云函数 =====
+// ===== 云函数 =====
 
 async function callApi(action, data) {
   data = data || {};
@@ -114,66 +146,187 @@ async function callLogin(userId, nickname) {
   return await callCloudFunction('login', { userId: userId, nickname: nickname });
 }
 
-// ===== 命令处理 =====
+// 获取各时段人数
+async function getSlotCounts(weekDate) {
+  var res = await callApi('getSlots', { weekDate: weekDate });
+  var slots = (res.success && res.slots) ? res.slots : [];
+  var counts = {};
+  HOURS.forEach(function(h) { counts[h] = 0; });
+  slots.forEach(function(s) { counts[s.hour] = (counts[s.hour] || 0) + s.count; });
+  return counts;
+}
 
-async function handleJoin(userId, displayName, opts) {
+// ===== 报名流程 Step 1: 选时段 =====
+
+async function startSignup(userId, displayName) {
   var weekDate = getCurrentSunday();
-  var hour = parseInt(opts['时段']);
-  var role = opts['职业'] || '输出';
-
   await callLogin(userId, displayName);
+
+  var counts = await getSlotCounts(weekDate);
+
+  // 构建消息：用 Discord 时间戳显示本地时间
+  var lines = HOURS.map(function(h) {
+    var count = counts[h] || 0;
+    var label = count > 0 ? count + '人已报名' : '虚位以待';
+    return discordTime(weekDate, h) + ' — ' + label;
+  });
+
+  var options = HOURS.map(function(h, i) {
+    var count = counts[h] || 0;
+    return {
+      label: '第' + (i + 1) + '场 (' + count + '人)',
+      value: String(h),
+      description: h + ':00 PT'
+    };
+  });
+
+  return replyRich({
+    content: '**选择时段报名：**\n' + lines.join('\n'),
+    components: [{
+      type: 1, // ActionRow
+      components: [{
+        type: 3, // StringSelect
+        custom_id: 'signup_time',
+        placeholder: '选择时段...',
+        options: options
+      }]
+    }],
+    flags: 64 // ephemeral，仅自己可见
+  });
+}
+
+// ===== 报名流程 Step 2: 选职业 =====
+
+async function stepRole(hourStr) {
+  return update({
+    content: '**选择职业：**',
+    components: [{
+      type: 1,
+      components: [
+        { type: 2, style: 1, label: '🔵 输出', custom_id: 'signup_role:' + hourStr + ':输出' },
+        { type: 2, style: 3, label: '🟢 霖霖', custom_id: 'signup_role:' + hourStr + ':霖霖' }
+      ]
+    }]
+  });
+}
+
+// ===== 报名流程 Step 3: 每周自动？ =====
+
+async function stepRecurring(hourStr, role) {
+  var emoji = role === '霖霖' ? '🟢' : '🔵';
+  return update({
+    content: '**职业：' + emoji + role + '**\n每周自动报名此时段？',
+    components: [{
+      type: 1,
+      components: [
+        { type: 2, style: 1, label: '每周自动', custom_id: 'signup_done:' + hourStr + ':' + role + ':yes' },
+        { type: 2, style: 2, label: '仅本周', custom_id: 'signup_done:' + hourStr + ':' + role + ':no' }
+      ]
+    }]
+  });
+}
+
+// ===== 报名流程 Step 4: 完成 =====
+
+async function finishSignup(userId, displayName, hourStr, role, recurring) {
+  var weekDate = getCurrentSunday();
+  var hour = parseInt(hourStr);
 
   var res = await callApi('join', {
     userId: userId, weekDate: weekDate, hour: hour,
-    nickname: displayName, role: role, recurring: false
+    nickname: displayName, role: role, recurring: recurring
   });
 
-  if (!res.success) return { content: '❌ ' + res.message };
+  if (!res.success) return update({ content: '❌ ' + res.message, components: [] });
 
   var emoji = role === '霖霖' ? '🟢' : '🔵';
-  var content = '✅ **' + displayName + '** 报名了 ' + discordTime(weekDate, hour) + ' 第' + (res.carIndex + 1) + '车 ' + emoji + role;
+  var msg = '✅ **' + displayName + '** 报名了 ' + discordTime(weekDate, hour)
+    + ' 第' + (res.carIndex + 1) + '车 ' + emoji + role
+    + (recurring ? '（每周自动）' : '');
 
   var board = await buildBoardEmbed(weekDate);
-  return { content: content, embeds: [board] };
+
+  // 更新交互消息为确认（ephemeral）
+  // 同时发一条公开消息到频道
+  return update({ content: msg, embeds: [board], components: [] });
 }
 
-async function handleLeave(userId) {
+// ===== 挪动流程 =====
+
+async function startMove(userId, displayName) {
   var weekDate = getCurrentSunday();
-  var res = await callApi('leave', { userId: userId, weekDate: weekDate });
-  if (!res.success) return { content: '❌ ' + res.message };
-
-  var board = await buildBoardEmbed(weekDate);
-  return { content: '👋 已退出本周报名', embeds: [board] };
-}
-
-async function handleMove(userId, displayName, opts) {
-  var weekDate = getCurrentSunday();
-  var targetHour = parseInt(opts['时段']);
-
   await callLogin(userId, displayName);
+
+  var counts = await getSlotCounts(weekDate);
+
+  var lines = HOURS.map(function(h) {
+    var count = counts[h] || 0;
+    return discordTime(weekDate, h) + ' — ' + (count || 0) + '人';
+  });
+
+  var options = HOURS.map(function(h, i) {
+    var count = counts[h] || 0;
+    return {
+      label: '第' + (i + 1) + '场 (' + count + '人)',
+      value: String(h),
+      description: h + ':00 PT'
+    };
+  });
+
+  return replyRich({
+    content: '**选择要挪到的时段：**\n' + lines.join('\n'),
+    components: [{
+      type: 1,
+      components: [{
+        type: 3,
+        custom_id: 'move_time',
+        placeholder: '选择目标时段...',
+        options: options
+      }]
+    }],
+    flags: 64
+  });
+}
+
+async function finishMove(userId, displayName, hourStr) {
+  var weekDate = getCurrentSunday();
+  var targetHour = parseInt(hourStr);
 
   var res = await callApi('move', {
     userId: userId, weekDate: weekDate, targetHour: targetHour, nickname: displayName
   });
 
-  if (!res.success) return { content: '❌ ' + res.message };
+  if (!res.success) return update({ content: '❌ ' + res.message, components: [] });
 
   var board = await buildBoardEmbed(weekDate);
-  return { content: '🔄 **' + displayName + '** 挪到了 ' + discordTime(weekDate, targetHour), embeds: [board] };
+  return update({
+    content: '🔄 **' + displayName + '** 挪到了 ' + discordTime(weekDate, targetHour),
+    embeds: [board],
+    components: []
+  });
+}
+
+// ===== 退出 / 看板 / 改名 =====
+
+async function handleLeave(userId) {
+  var weekDate = getCurrentSunday();
+  var res = await callApi('leave', { userId: userId, weekDate: weekDate });
+  if (!res.success) return reply('❌ ' + res.message);
+  var board = await buildBoardEmbed(weekDate);
+  return replyRich({ content: '👋 已退出本周报名', embeds: [board] });
 }
 
 async function handleBoard() {
   var weekDate = getCurrentSunday();
   var board = await buildBoardEmbed(weekDate);
-  return { embeds: [board] };
+  return replyRich({ embeds: [board] });
 }
 
 async function handleRename(userId, opts) {
   var nickname = (opts['名字'] || '').trim().slice(0, 12);
-  if (!nickname) return { content: '❌ 请输入名字' };
-
+  if (!nickname) return reply('❌ 请输入名字', true);
   await callApi('updateNickname', { userId: userId, nickname: nickname });
-  return { content: '✅ 已改名为 **' + nickname + '**' };
+  return reply('✅ 已改名为 **' + nickname + '**', true);
 }
 
 // ===== 看板 Embed =====
@@ -183,9 +336,8 @@ async function buildBoardEmbed(weekDate) {
   var slots = (res.success && res.slots) ? res.slots : [];
 
   var title = '🏯 燕云十六声 · 百业十人本';
-  // 用第一个时段的 Discord 日期格式，每个用户看到自己本地的日期
-  var firstSlotDate = '<t:' + pdtToUnix(weekDate, 14) + ':D>';
-  var description = '📅 ' + firstSlotDate;
+  var firstDate = '<t:' + pdtToUnix(weekDate, 14) + ':D>';
+  var description = '📅 ' + firstDate;
 
   var byHour = {};
   var totalPeople = 0;
@@ -195,25 +347,20 @@ async function buildBoardEmbed(weekDate) {
     totalPeople += s.count;
   });
 
-  var hours = [14, 15, 16, 17, 18, 19, 20, 21, 22];
   var fields = [];
 
-  hours.forEach(function(hour) {
+  HOURS.forEach(function(hour) {
     var cars = byHour[hour];
     if (!cars || cars.length === 0) return;
-
     cars.sort(function(a, b) { return a.carIndex - b.carIndex; });
     var lines = [];
-
     cars.forEach(function(car) {
       lines.push('**第' + (car.carIndex + 1) + '车** (' + car.count + '/10)');
       var members = car.members.map(function(m) {
-        var emoji = m.role === '霖霖' ? '🟢' : '🔵';
-        return emoji + m.nickname;
+        return (m.role === '霖霖' ? '🟢' : '🔵') + m.nickname;
       });
       lines.push(members.join('  '));
     });
-
     fields.push({
       name: '🕐 ' + discordTime(weekDate, hour) + ' 本地时间',
       value: lines.join('\n'),

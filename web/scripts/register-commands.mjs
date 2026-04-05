@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 /**
- * 一次性脚本：注册 Discord slash commands
+ * 注册 Discord slash commands（改完后需重新运行）
  *
  * 用法：
  *   DISCORD_APP_ID=xxx DISCORD_BOT_TOKEN=xxx DISCORD_GUILD_ID=xxx node scripts/register-commands.mjs
- *
- * DISCORD_GUILD_ID 可选。填了注册为服务器命令（立即生效），不填注册为全局命令（最多1小时生效）
  */
 
 const APP_ID = process.env.DISCORD_APP_ID;
@@ -17,43 +15,10 @@ if (!APP_ID || !BOT_TOKEN) {
   process.exit(1);
 }
 
-const timeChoices = [
-  { name: '第1场 · 2 PM PT', value: '14' },
-  { name: '第2场 · 3 PM PT', value: '15' },
-  { name: '第3场 · 4 PM PT', value: '16' },
-  { name: '第4场 · 5 PM PT', value: '17' },
-  { name: '第5场 · 6 PM PT', value: '18' },
-  { name: '第6场 · 7 PM PT', value: '19' },
-  { name: '第7场 · 8 PM PT', value: '20' },
-  { name: '第8场 · 9 PM PT', value: '21' },
-  { name: '22:00 PDT (10PM)', value: '22' }
-];
-
-const roleChoices = [
-  { name: '输出 🔵', value: '输出' },
-  { name: '霖霖 🟢', value: '霖霖' }
-];
-
 const commands = [
   {
     name: '报名',
-    description: '报名本周百业十人本',
-    options: [
-      {
-        name: '时段',
-        description: '选择时间段 (PDT)',
-        type: 3, // STRING
-        required: true,
-        choices: timeChoices
-      },
-      {
-        name: '职业',
-        description: '选择职业（默认输出）',
-        type: 3,
-        required: false,
-        choices: roleChoices
-      }
-    ]
+    description: '报名本周百业十人本（多轮选择时段、职业）'
   },
   {
     name: '退出',
@@ -61,16 +26,7 @@ const commands = [
   },
   {
     name: '挪动',
-    description: '挪动到其他时间段',
-    options: [
-      {
-        name: '时段',
-        description: '目标时间段 (PDT)',
-        type: 3,
-        required: true,
-        choices: timeChoices
-      }
-    ]
+    description: '挪动到其他时间段（多轮选择）'
   },
   {
     name: '看板',
@@ -95,7 +51,6 @@ const url = GUILD_ID
   : `https://discord.com/api/v10/applications/${APP_ID}/commands`;
 
 console.log('注册命令到:', GUILD_ID ? `服务器 ${GUILD_ID}` : '全局');
-console.log('命令数量:', commands.length);
 
 const res = await fetch(url, {
   method: 'PUT',
