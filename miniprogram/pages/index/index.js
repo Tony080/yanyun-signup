@@ -292,14 +292,31 @@ Page({
       }
     }
 
-    // Build slot metadata for compact rows
+    // Build slot metadata for compact rows + past check
+    var pdtNow = week.getPDTNow();
+    var pdtTodayStr = week.formatDate(pdtNow);
+    var pdtCurrentHour = pdtNow.getHours();
+    var isDayPast = dayDate < pdtTodayStr;
+    var isDayToday = dayDate === pdtTodayStr;
+
     var slotMeta = {};
     for (var sh in slotsMap) {
       var sd = slotsMap[sh];
       slotMeta[sh] = {
         allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
-        isHot: sd.totalCount >= 20
+        isHot: sd.totalCount >= 20,
+        isPast: isDayPast || (isDayToday && +sh <= pdtCurrentHour)
       };
+    }
+    // Also mark hours with no slots as past
+    for (var ti = 0; ti < SLOT_HOURS_PDT.length; ti++) {
+      var hr = SLOT_HOURS_PDT[ti];
+      if (!slotMeta[hr]) {
+        slotMeta[hr] = {
+          allFull: false, isHot: false,
+          isPast: isDayPast || (isDayToday && hr <= pdtCurrentHour)
+        };
+      }
     }
 
     this.setData({

@@ -144,6 +144,8 @@ body {
 .slot-row-hot { font-size: 10px; color: #f0b429; font-weight: bold; }
 .slot-row-chevron { font-size: 12px; color: #484f58; margin-right: 8px; transition: transform 0.2s; }
 .slot-row.expanded .slot-row-chevron { transform: rotate(90deg); }
+.slot-row.past { opacity: 0.5; }
+.slot-row.past .slot-row-time { color: #484f58; }
 .slot-cars { display: none; padding: 0 4px; margin-bottom: 8px; }
 .slot-cars.show { display: flex; flex-direction: column; gap: 8px; }
 .create-btn {
@@ -1177,6 +1179,14 @@ function render() {
   }
 
   // ===== 紧凑时段列表 =====
+  // 计算当前选中天是否是今天（PDT），以及当前 PDT 小时
+  var pdtNow = getPDTNow();
+  var pdtTodayStr = fmtDate(pdtNow);
+  var pdtCurrentHour = pdtNow.getHours();
+  var selectedDayDate = s.weekDays[s.selectedDay].dayDate;
+  var isSelectedDayPast = selectedDayDate < pdtTodayStr;
+  var isSelectedDayToday = selectedDayDate === pdtTodayStr;
+
   html += '<div class="section-title">全部时段</div>';
   s.timeSlots.forEach(function(slot) {
     var data = s.slotsMap[slot.pdtHour];
@@ -1185,26 +1195,28 @@ function render() {
     var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour && s.myRegistration.dayIndex === s.selectedDay;
     var allFull = data && data.cars.length > 0 && data.cars.every(function(c) { return c.full; });
     var isHot = count >= 20;
+    var isPast = isSelectedDayPast || (isSelectedDayToday && slot.pdtHour <= pdtCurrentHour);
 
     // Slot row
-    var rowClass = 'slot-row' + (isHot ? ' hot' : '') + (isCurrent ? ' current' : '') + (isExpanded ? ' expanded' : '');
+    var rowClass = 'slot-row' + (isHot ? ' hot' : '') + (isCurrent ? ' current' : '') + (isExpanded ? ' expanded' : '') + (isPast ? ' past' : '');
     html += '<div class="' + rowClass + '" onclick="window._toggleSlot(' + slot.pdtHour + ')">';
     html += '<div class="slot-row-left">';
     html += '<span class="slot-row-chevron">▸</span>';
     html += '<span class="slot-row-time">' + esc(slot.display) + '</span>';
     html += '<span class="slot-row-count">' + count + '人</span>';
     if (isHot) html += '<span class="slot-row-hot">HOT</span>';
+    if (isPast && !isCurrent) html += '<span style="font-size:10px;color:#484f58;margin-left:4px">已过</span>';
     if (isCurrent) html += '<span class="current-badge" style="padding:2px 8px;font-size:11px">当前</span>';
     html += '</div>';
 
-    // Action button (stop propagation)
-    if (!s.myRegistration && !s.actionLoading) {
+    // Action button — 不显示已过时段的加入/挪动按钮
+    if (!isPast && !s.myRegistration && !s.actionLoading) {
       if (allFull) {
         html += '<button class="action-btn create-btn" onclick="event.stopPropagation();window._createTeamAt(' + slot.pdtHour + ')">开新车</button>';
       } else {
         html += '<button class="action-btn join-btn" onclick="event.stopPropagation();window._joinSlot(' + slot.pdtHour + ')">加入</button>';
       }
-    } else if (s.myRegistration && !isCurrent && !s.actionLoading) {
+    } else if (!isPast && s.myRegistration && !isCurrent && !s.actionLoading) {
       html += '<button class="action-btn move-btn" onclick="event.stopPropagation();window._move(' + slot.pdtHour + ')">挪到这里</button>';
     }
     html += '</div>';

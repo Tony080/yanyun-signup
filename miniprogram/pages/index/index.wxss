@@ -163,6 +163,9 @@
 .slot-row-hot-tag { font-size: 20rpx; color: #f0b429; font-weight: bold; }
 .slot-row-chevron { font-size: 24rpx; color: #484f58; transition: transform 0.2s; }
 .slot-row-expanded .slot-row-chevron { transform: rotate(90deg); }
+.slot-row-past { opacity: 0.5; }
+.slot-row-past .slot-row-time { color: #484f58; }
+.slot-row-past-tag { font-size: 20rpx; color: #484f58; margin-left: 6rpx; }
 .current-badge-small { background: rgba(240,180,41,0.12); color: #f0b429; padding: 4rpx 14rpx; border-radius: 8rpx; font-size: 20rpx; }
 .slot-row-right { flex-shrink: 0; }
 .slot-cars { padding: 0 8rpx; margin-bottom: 16rpx; display: flex; flex-direction: column; gap: 16rpx; }

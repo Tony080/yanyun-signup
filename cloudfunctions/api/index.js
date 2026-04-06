@@ -87,6 +87,13 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     return { success: false, message: '你本周已报名，请使用挪动切换时段' };
   }
 
+  // 拒绝加入已过的时段
+  var pdtNow = getPDTNow();
+  var todayStr = formatDateStr(pdtNow);
+  if (hour != null && (dayDate < todayStr || (dayDate === todayStr && hour <= pdtNow.getHours()))) {
+    return { success: false, message: '该时段已过，请选择未来的时段' };
+  }
+
   var targetCar;
   var resultHour;
 
@@ -141,6 +148,13 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
 async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers }) {
   role = role || '输出';
   dayDate = dayDate || weekDate;
+
+  // 拒绝创建已过时段的车队
+  var pdtNow = getPDTNow();
+  var todayStr = formatDateStr(pdtNow);
+  if (dayDate < todayStr || (dayDate === todayStr && hour <= pdtNow.getHours())) {
+    return { success: false, message: '该时段已过，请选择未来的时段' };
+  }
 
   var existing = await db.collection('slots')
     .where({ weekDate, members: _.elemMatch({ openid }) })
