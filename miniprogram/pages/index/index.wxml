@@ -1,5 +1,5 @@
 <view class="container">
-  <!-- 头部信息 -->
+  <!-- 头部（精简：标题+昵称） -->
   <view class="header">
     <view class="title-row">
       <text class="title">燕云十六声</text>
@@ -15,26 +15,21 @@
       <view class="save-btn" bindtap="saveNickname"
             wx:if="{{nicknameInput !== nickname}}">保存</view>
     </view>
+  </view>
 
-    <!-- 帮别人报名（常驻 header） -->
-    <view class="proxy-section">
-      <view class="proxy-title">帮别人报名</view>
-      <view class="proxy-tags" wx:if="{{proxyList.length > 0}}">
-        <view class="proxy-tag {{item.role === '霖霖' ? 'proxy-tag-linlin' : 'proxy-tag-output'}}"
-              wx:for="{{proxyList}}" wx:key="index">
-          {{item.nickname}} {{item.role === '霖霖' ? '🟢' : '🔵'}}
-          <text class="proxy-tag-x" catchtap="removeProxyFromList" data-index="{{index}}">×</text>
+  <!-- 我的状态卡片（增强版） -->
+  <view class="status-card" wx:if="{{myRegistration}}">
+    <view class="status-main">
+      <text class="status-check">✅</text>
+      <view class="status-info">
+        <text class="status-line1">已报名 {{myRegistration.localDisplay}}</text>
+        <view class="status-line2">
+          <text>第{{myRegistration.carIndex + 1}}车</text>
         </view>
       </view>
-      <view class="proxy-input-row">
-        <input class="proxy-name-input" placeholder="名字" maxlength="12"
-               value="{{proxyNameInput}}" bindinput="onProxyNameInput" />
-        <picker class="proxy-role-picker" bindchange="onProxyRoleChange"
-                range="{{['🔵 输出', '🟢 霖霖']}}" value="{{proxyRoleIndex}}">
-          <view class="proxy-role-display">{{proxyRoleIndex === 1 ? '🟢 霖霖' : '🔵 输出'}}</view>
-        </picker>
-        <view class="proxy-add-btn" bindtap="addProxyToList">+</view>
-      </view>
+    </view>
+    <view class="status-actions">
+      <view class="leave-btn" bindtap="handleLeave">退出</view>
     </view>
   </view>
 
@@ -45,17 +40,6 @@
     </view>
     <view class="entry-btn create-team-btn" bindtap="openSignupModal" data-mode="create">
       🚗 创建车队
-    </view>
-  </view>
-
-  <!-- 我的报名状态 -->
-  <view class="my-status" wx:if="{{myRegistration}}">
-    <view class="status-top">
-      <view class="status-left">
-        <text class="status-icon">✅</text>
-        <text class="status-text">已报名 {{myRegistration.localDisplay}} 第{{myRegistration.carIndex + 1}}车</text>
-      </view>
-      <view class="leave-btn" bindtap="handleLeave">退出</view>
     </view>
   </view>
 
@@ -71,6 +55,27 @@
     <text class="recurring-hint-off" wx:if="{{!isRecurring}}">关闭</text>
   </view>
 
+  <!-- 时段热度 Heatmap -->
+  <view class="section-title" wx:if="{{!loading}}">📊 时段热度</view>
+  <view class="heatmap" wx:if="{{!loading}}">
+    <view class="heatmap-col" wx:for="{{heatmapData}}" wx:key="pdtHour"
+          bindtap="toggleSlot" data-hour="{{item.pdtHour}}">
+      <text class="heatmap-count">{{item.count}}</text>
+      <view class="heatmap-bar {{item.tier}}" style="height: {{item.pct}}%"></view>
+      <text class="heatmap-label">{{item.label}}</text>
+    </view>
+  </view>
+
+  <!-- 推荐卡片（未报名时） -->
+  <view class="recommend-card" wx:if="{{!myRegistration && recommendation}}">
+    <text class="recommend-badge">💡 推荐加入</text>
+    <text class="recommend-text">{{recommendation.display}} — 缺{{recommendation.neededCount}}名{{recommendation.neededRole}}!</text>
+    <text class="recommend-detail">第{{recommendation.carIndex + 1}}车: {{recommendation.carCount}}/10</text>
+    <view class="recommend-btn" bindtap="joinRecommend">
+      以{{recommendation.neededRole === '霖霖' ? '🟢霖霖' : '🔵输出'}}加入
+    </view>
+  </view>
+
   <!-- 通知订阅 -->
   <view class="notify-bar" bindtap="subscribeNotify">
     <text class="notify-text">开启开车前30分钟提醒</text>
@@ -82,37 +87,42 @@
     <text>加载中...</text>
   </view>
 
-  <!-- 时间段列表 -->
+  <!-- 紧凑时段列表 -->
+  <view class="section-title" wx:if="{{!loading}}">全部时段</view>
   <view class="time-slots" wx:if="{{!loading}}">
-    <view class="slot-block" wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
-      <view class="slot-header">
-        <view class="hour-info">
-          <text class="hour-text">{{slot.display}}</text>
-          <text class="total-count" wx:if="{{slotsMap[slot.pdtHour]}}">
-            {{slotsMap[slot.pdtHour].totalCount}}人
-          </text>
+    <block wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
+      <!-- Compact slot row -->
+      <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration.hour === slot.pdtHour ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}}"
+            bindtap="toggleSlot" data-hour="{{slot.pdtHour}}">
+        <view class="slot-row-left">
+          <text class="slot-row-chevron">▸</text>
+          <text class="slot-row-time">{{slot.display}}</text>
+          <text class="slot-row-count" wx:if="{{slotsMap[slot.pdtHour]}}">{{slotsMap[slot.pdtHour].totalCount}}人</text>
+          <text class="slot-row-hot-tag" wx:if="{{slotMeta[slot.pdtHour].isHot}}">HOT</text>
+          <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour}}">当前</text>
         </view>
-        <view class="slot-actions">
-          <!-- Per-slot join button (when not registered) -->
-          <view class="action-btn join-btn" bindtap="handleSlotJoin"
-                data-hour="{{slot.pdtHour}}" wx:if="{{!myRegistration && !actionLoading}}">
+        <view class="slot-row-right" catchtap="preventBubble">
+          <!-- Join / Create / Move buttons -->
+          <view class="action-btn join-btn" catchtap="handleSlotJoin"
+                data-hour="{{slot.pdtHour}}"
+                wx:if="{{!myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
             加入
           </view>
-          <!-- Move button (when registered in different slot) -->
-          <view class="action-btn move-btn" bindtap="handleMove"
+          <view class="action-btn create-btn" catchtap="createTeamAt"
+                data-hour="{{slot.pdtHour}}"
+                wx:if="{{!myRegistration && !actionLoading && slotMeta[slot.pdtHour].allFull}}">
+            开新车
+          </view>
+          <view class="action-btn move-btn" catchtap="handleMove"
                 data-hour="{{slot.pdtHour}}"
                 wx:if="{{myRegistration && myRegistration.hour !== slot.pdtHour && !actionLoading}}">
             挪到这里
           </view>
-          <!-- Current badge -->
-          <view class="current-badge"
-                wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour}}">
-            当前
-          </view>
         </view>
       </view>
 
-      <view class="cars-area">
+      <!-- Expandable car details -->
+      <view class="slot-cars" wx:if="{{expandedSlots[slot.pdtHour]}}">
         <block wx:if="{{slotsMap[slot.pdtHour] && slotsMap[slot.pdtHour].cars.length > 0}}">
           <view class="car-card {{car.full ? 'car-full' : ''}}"
                 wx:for="{{slotsMap[slot.pdtHour].cars}}" wx:key="carIndex" wx:for-item="car">
@@ -124,6 +134,7 @@
               <view class="car-bar-fill {{car.full ? 'bar-full' : ''}}"
                     style="width: {{car.count * 10}}%"></view>
             </view>
+            <text class="car-bar-text {{car.full ? 'bar-full-text' : ''}}">{{car.count * 10}}% — {{car.full ? '已满' : '还差' + (10 - car.count) + '人'}}</text>
             <view class="members">
               <!-- Leader first -->
               <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
@@ -154,27 +165,21 @@
           <text>虚位以待</text>
         </view>
       </view>
-    </view>
+    </block>
   </view>
 
-  <!-- 默认名字确认弹窗 -->
+  <!-- 默认名字确认弹窗（简化版） -->
   <view class="modal-overlay" wx:if="{{showNameConfirm}}" catchtap="confirmNameCancel">
     <view class="modal-card name-confirm-card" catchtap="preventBubble">
       <view class="modal-title">确认角色名</view>
       <view class="name-confirm-body">
-        <text>你确定使用 </text>
+        <text>你的角色名是 </text>
         <text class="name-highlight">{{nameConfirmTarget}}</text>
-        <text class="copy-icon" catchtap="copyNameConfirm"> 📋</text>
-        <text> 作为你的角色名报名吗？</text>
       </view>
-      <view class="name-confirm-hint">请提供角色名以方便他人组队。</view>
-      <view class="name-confirm-hint">请在下方输入你的名字确认：</view>
-      <input class="name-confirm-input" value="{{nameConfirmInput}}"
-             bindinput="onNameConfirmInput" placeholder="输入上面的名字确认" />
+      <view class="name-confirm-hint">建议修改为游戏内角色名，方便他人组队。</view>
       <view class="modal-actions">
-        <view class="modal-cancel-btn" bindtap="confirmNameCancel">取消，我去改名</view>
-        <view class="modal-confirm-btn {{nameConfirmOk ? '' : 'modal-btn-disabled'}}"
-              bindtap="confirmNameOk">确认使用</view>
+        <view class="modal-cancel-btn" bindtap="confirmNameCancel">去改名</view>
+        <view class="modal-confirm-btn" bindtap="confirmNameOk">继续报名</view>
       </view>
     </view>
   </view>
@@ -227,6 +232,27 @@
           <text wx:if="{{signupRecurring}}">✓</text>
         </view>
         <text class="recurring-check-label">每周自动</text>
+      </view>
+
+      <!-- 帮别人报名（移到弹窗内） -->
+      <view class="modal-section">
+        <text class="modal-section-title">帮别人一起报名（可选）</text>
+        <view class="extra-tags" wx:if="{{proxyList.length > 0}}">
+          <view class="extra-tag {{item.role === '霖霖' ? 'extra-tag-linlin' : 'extra-tag-output'}}"
+                wx:for="{{proxyList}}" wx:key="index">
+            {{item.nickname}} {{item.role === '霖霖' ? '🟢' : '🔵'}}
+            <text class="extra-remove" catchtap="removeProxyFromList" data-index="{{index}}">×</text>
+          </view>
+        </view>
+        <view class="proxy-input-row">
+          <input class="proxy-name-input" placeholder="朋友名字" maxlength="12"
+                 value="{{proxyNameInput}}" bindinput="onProxyNameInput" />
+          <picker class="proxy-role-picker" bindchange="onProxyRoleChange"
+                  range="{{['🔵 输出', '🟢 霖霖']}}" value="{{proxyRoleIndex}}">
+            <view class="proxy-role-display">{{proxyRoleIndex === 1 ? '🟢 霖霖' : '🔵 输出'}}</view>
+          </picker>
+          <view class="proxy-add-btn" bindtap="addProxyToList">+</view>
+        </view>
       </view>
 
       <!-- Action buttons -->

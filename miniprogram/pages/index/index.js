@@ -20,10 +20,15 @@ Page({
     loading: true,
     actionLoading: false,
 
-    // 帮报名列表（header 常驻）
+    // 帮报名列表（报名弹窗内）
     proxyList: [],
     proxyNameInput: '',
     proxyRoleIndex: 0,
+
+    // Dashboard: expanded slots, heatmap, recommendation
+    expandedSlots: {},
+    heatmapData: [],
+    recommendation: null,
 
     // Signup modal state
     showSignupModal: false,
@@ -39,11 +44,10 @@ Page({
     timePickerOptions: [],
     timePickerIndex: 0,
 
-    // 默认名字确认弹窗
+    // 默认名字确认弹窗（简化版）
     showNameConfirm: false,
     nameConfirmTarget: '',
-    nameConfirmInput: '',
-    nameConfirmOk: false
+    slotMeta: {}
   },
 
   onLoad: function () {
@@ -175,7 +179,65 @@ Page({
         slotsMap[key].cars.sort(function (a, b) { return a.carIndex - b.carIndex; });
       }
 
-      this.setData({ slotsMap: slotsMap, myRegistration: myRegistration, loading: false });
+      // Build heatmap data
+      var timeSlots = this.data.timeSlots;
+      var maxCount = 1;
+      for (var ti = 0; ti < timeSlots.length; ti++) {
+        var td = slotsMap[timeSlots[ti].pdtHour];
+        if (td && td.totalCount > maxCount) maxCount = td.totalCount;
+      }
+      var heatmapData = timeSlots.map(function(ts) {
+        var d = slotsMap[ts.pdtHour];
+        var count = d ? d.totalCount : 0;
+        var pct = Math.max(6, Math.round((count / maxCount) * 100));
+        var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
+        return { pdtHour: ts.pdtHour, count: count, pct: pct, tier: tier, label: ts.shortDisplay || ts.display };
+      });
+
+      // Build recommendation (find car needing specific role)
+      var recommendation = null;
+      if (!myRegistration) {
+        var self = this;
+        for (var rh in slotsMap) {
+          var rdata = slotsMap[rh];
+          for (var ci = 0; ci < rdata.cars.length; ci++) {
+            var rcar = rdata.cars[ci];
+            if (rcar.full || rcar.count < 5) continue;
+            var oc = 0, lc = 0;
+            for (var mi = 0; mi < rcar.members.length; mi++) {
+              if (rcar.members[mi].role === '霖霖') lc++; else oc++;
+            }
+            var need = null, needCount = 0;
+            if (lc < 3 && oc >= lc + 2) { need = '霖霖'; needCount = 3 - lc; }
+            else if (oc < 5 && lc >= oc) { need = '输出'; needCount = 5 - oc; }
+            if (need && (!recommendation || rcar.count > recommendation.carCount)) {
+              recommendation = {
+                hour: +rh,
+                carIndex: rcar.carIndex,
+                neededRole: need,
+                neededCount: needCount,
+                carCount: rcar.count,
+                display: pdtToLocal(this.data.weekDate, +rh).display
+              };
+            }
+          }
+        }
+      }
+
+      // Build slot metadata for compact rows
+      var slotMeta = {};
+      for (var sh in slotsMap) {
+        var sd = slotsMap[sh];
+        slotMeta[sh] = {
+          allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
+          isHot: sd.totalCount >= 20
+        };
+      }
+
+      this.setData({
+        slotsMap: slotsMap, myRegistration: myRegistration, loading: false,
+        heatmapData: heatmapData, recommendation: recommendation, slotMeta: slotMeta
+      });
     } catch (err) {
       console.error('loadSlots failed', err);
       this.setData({ loading: false });
@@ -213,18 +275,38 @@ Page({
     this.setData({ proxyList: list });
   },
 
-  // ===== 默认名字确认 =====
+  // ===== 展开/折叠时段 =====
 
-  onNameConfirmInput: function (e) {
-    var val = e.detail.value.trim();
-    this.setData({
-      nameConfirmInput: val,
-      nameConfirmOk: val === this.data.nameConfirmTarget
+  toggleSlot: function (e) {
+    var hour = e.currentTarget.dataset.hour;
+    var expanded = this.data.expandedSlots;
+    expanded[hour] = !expanded[hour];
+    this.setData({ expandedSlots: expanded });
+  },
+
+  // ===== 推荐卡片一键加入 =====
+
+  joinRecommend: function () {
+    var rec = this.data.recommendation;
+    if (!rec) return;
+    this.setData({ signupRole: rec.neededRole });
+    this.openSignupModal({
+      currentTarget: { dataset: { mode: 'quick', hour: rec.hour } }
     });
   },
 
+  // ===== 满车时段创建车队 =====
+
+  createTeamAt: function (e) {
+    var hour = e.currentTarget.dataset.hour;
+    this.openSignupModal({
+      currentTarget: { dataset: { mode: 'create', hour: hour } }
+    });
+  },
+
+  // ===== 默认名字确认（简化版）=====
+
   confirmNameOk: function () {
-    if (!this.data.nameConfirmOk) return;
     this.setData({ showNameConfirm: false });
     if (this._nameConfirmResolve) this._nameConfirmResolve(true);
   },
@@ -232,10 +314,6 @@ Page({
   confirmNameCancel: function () {
     this.setData({ showNameConfirm: false });
     if (this._nameConfirmResolve) this._nameConfirmResolve(false);
-  },
-
-  copyNameConfirm: function () {
-    wx.setClipboardData({ data: this.data.nameConfirmTarget });
   },
 
   saveNickname: async function () {
@@ -355,15 +433,13 @@ Page({
 
     var nickname = this.data.nickname;
 
-    // 默认名字二次确认
+    // 默认名字二次确认（简化版）
     if (nickname.startsWith('水仙十字社小可爱') || nickname.startsWith('访客')) {
       var self = this;
       var confirmed = await new Promise(function (resolve) {
         self.setData({
           showNameConfirm: true,
-          nameConfirmTarget: nickname,
-          nameConfirmInput: '',
-          nameConfirmOk: false
+          nameConfirmTarget: nickname
         });
         self._nameConfirmResolve = resolve;
       });

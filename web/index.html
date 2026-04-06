@@ -35,31 +35,6 @@ body {
 }
 .save-btn { background: #f0b429; color: #0d1117; display: none; }
 .save-btn.show { display: block; }
-.proxy-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
-.proxy-title-row { margin-bottom: 8px; }
-.proxy-title { font-size: 12px; color: #8b949e; }
-.proxy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.proxy-tag {
-  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
-  border-radius: 4px; font-size: 12px;
-}
-.proxy-tag-output { background: rgba(56,139,253,0.12); color: #79c0ff; border: 1px solid rgba(56,139,253,0.25); }
-.proxy-tag-linlin { background: rgba(63,185,80,0.12); color: #7ee787; border: 1px solid rgba(63,185,80,0.25); }
-.proxy-tag-x { color: #f85149; cursor: pointer; font-weight: bold; margin-left: 2px; }
-.proxy-input-row { display: flex; gap: 6px; align-items: center; }
-.proxy-name-input {
-  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 5px; padding: 5px 8px; color: #e6edf3; font-size: 12px; outline: none;
-}
-.proxy-name-input:focus { border-color: rgba(240,180,41,0.4); }
-.proxy-role-select {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 5px; padding: 5px 6px; color: #e6edf3; font-size: 12px; outline: none;
-}
-.proxy-add-btn {
-  background: #238636; color: #fff; border: none; border-radius: 5px;
-  width: 28px; height: 28px; font-size: 16px; cursor: pointer; flex-shrink: 0;
-}
 .recovery-row {
   display: flex; align-items: center; justify-content: space-between;
   margin-top: 10px; gap: 8px;
@@ -75,6 +50,103 @@ body {
   background: rgba(56,139,253,0.15); color: #58a6ff; padding: 6px 12px;
   border-radius: 6px; font-size: 12px; border: 1px solid rgba(56,139,253,0.3); cursor: pointer;
 }
+
+/* Status card (enhanced) */
+.status-card {
+  background: rgba(35,134,54,0.12); border: 1px solid rgba(35,134,54,0.3);
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
+}
+.status-card .status-main { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.status-card .status-check { font-size: 18px; }
+.status-card .status-info { flex: 1; }
+.status-card .status-line1 { color: #3fb950; font-size: 15px; font-weight: 600; }
+.status-card .status-line2 { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.status-card .status-role { font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.status-card .status-role.output { background: rgba(56,139,253,0.15); color: #79c0ff; }
+.status-card .status-role.linlin { background: rgba(63,185,80,0.15); color: #7ee787; }
+.status-card .status-actions { display: flex; gap: 8px; }
+
+/* Heatmap */
+.section-title { font-size: 13px; color: #8b949e; font-weight: 600; margin-bottom: 8px; }
+.heatmap {
+  display: flex; gap: 3px; align-items: flex-end; height: 70px;
+  margin-bottom: 12px;
+}
+.heatmap-col { flex: 1; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.heatmap-count { font-size: 10px; color: #8b949e; margin-bottom: 2px; }
+.heatmap-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 4px; transition: all 0.2s; }
+.heatmap-bar.tier-empty { background: #21262d; }
+.heatmap-bar.tier-low { background: #238636; }
+.heatmap-bar.tier-mid { background: #3fb950; }
+.heatmap-bar.tier-hot { background: #f0b429; }
+.heatmap-label { font-size: 10px; color: #6e7681; margin-top: 3px; }
+
+/* Recommend card */
+.recommend-card {
+  background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.25);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+}
+.recommend-badge {
+  display: inline-block; background: rgba(139,92,246,0.2); color: #a78bfa;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-bottom: 6px;
+}
+.recommend-text { font-size: 13px; color: #e6edf3; margin-bottom: 2px; }
+.recommend-detail { font-size: 12px; color: #8b949e; margin-bottom: 8px; }
+.recommend-btn {
+  background: #238636; color: #fff; border: none; border-radius: 6px;
+  padding: 7px 18px; font-size: 12px; font-weight: bold; cursor: pointer;
+}
+.recommend-btn:active { opacity: 0.7; }
+
+/* Compact slot rows */
+.slot-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #161b22; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+  border: 1px solid #21262d; cursor: pointer; transition: border-color 0.2s;
+}
+.slot-row:hover { border-color: #30363d; }
+.slot-row.hot { border-color: rgba(240,180,41,0.25); }
+.slot-row.current { border-color: rgba(35,134,54,0.4); }
+.slot-row-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+.slot-row-time { font-size: 14px; font-weight: 600; color: #e6edf3; }
+.slot-row-count { font-size: 12px; color: #8b949e; }
+.slot-row-hot { font-size: 10px; color: #f0b429; font-weight: bold; }
+.slot-row-chevron { font-size: 12px; color: #484f58; margin-right: 8px; transition: transform 0.2s; }
+.slot-row.expanded .slot-row-chevron { transform: rotate(90deg); }
+.slot-cars { display: none; padding: 0 4px; margin-bottom: 8px; }
+.slot-cars.show { display: flex; flex-direction: column; gap: 8px; }
+.create-btn {
+  background: rgba(240,180,41,0.12); color: #f0b429; border: 1px solid rgba(240,180,41,0.3);
+}
+
+/* Proxy section in signup modal */
+.signup-proxy { margin-top: 4px; }
+.signup-proxy-title { font-size: 12px; color: #6e7681; margin-bottom: 8px; }
+.signup-proxy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 0; }
+.signup-proxy-tag {
+  padding: 4px 8px; border-radius: 4px; font-size: 12px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.signup-proxy-tag.role-output { background: rgba(56,139,253,0.12); color: #79c0ff; }
+.signup-proxy-tag.role-linlin { background: rgba(63,185,80,0.12); color: #7ee787; }
+.signup-proxy-tag .proxy-remove { cursor: pointer; opacity: 0.6; }
+.signup-proxy-tag .proxy-remove:hover { opacity: 1; }
+.signup-proxy-input { display: flex; gap: 6px; }
+.signup-proxy-input input {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 6px 10px; color: #e6edf3; font-size: 13px; outline: none;
+}
+.signup-proxy-input input:focus { border-color: rgba(240,180,41,0.4); }
+.signup-proxy-input select {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 6px 8px; color: #e6edf3; font-size: 13px; outline: none;
+}
+.signup-proxy-input select option { background: #1a1a2e; color: #e6edf3; }
+.signup-proxy-add {
+  background: rgba(255,255,255,0.08); color: #c9d1d9; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; flex-shrink: 0;
+}
+.signup-proxy-add:active { background: rgba(255,255,255,0.15); }
 
 .my-status {
   background: rgba(35,134,54,0.15); border: 1px solid rgba(35,134,54,0.3);
@@ -141,8 +213,10 @@ body {
 .car-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .car-name { font-size: 13px; color: #8b949e; }
 .car-count { font-size: 12px; color: #8b949e; }
-.car-bar { height: 3px; background: #21262d; border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
-.car-bar-fill { height: 100%; background: #238636; border-radius: 2px; transition: width 0.3s; }
+.car-bar { height: 8px; background: #21262d; border-radius: 4px; margin-bottom: 4px; overflow: hidden; }
+.car-bar-fill { height: 100%; background: #238636; border-radius: 4px; transition: width 0.3s; }
+.car-bar-text { font-size: 11px; color: #3fb950; margin-bottom: 6px; }
+.car-bar-text.bar-full-text { color: #f0b429; }
 .car-bar-fill.bar-full { background: #f0b429; }
 .members { display: flex; flex-wrap: wrap; gap: 6px; }
 .member { padding: 4px 10px; border-radius: 4px; font-size: 12px; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 4px; }
@@ -312,6 +386,18 @@ body {
       </div>
     </div>
 
+    <div class="signup-field" id="signupProxySection">
+      <div class="signup-proxy">
+        <div class="signup-proxy-title">帮别人一起报名（可选）</div>
+        <div class="signup-proxy-tags" id="signupProxyTags"></div>
+        <div class="signup-proxy-input">
+          <input id="proxyNameInput" placeholder="朋友名字" maxlength="12">
+          <select id="proxyRoleSelect"><option value="输出">🔵 输出</option><option value="霖霖">🟢 霖霖</option></select>
+          <button class="signup-proxy-add" onclick="window._addProxyToList()">+</button>
+        </div>
+      </div>
+    </div>
+
     <div class="signup-actions">
       <button class="signup-cancel" onclick="window._signupClose()">取消</button>
       <button id="signupConfirmBtn" onclick="window._signupSubmit()"></button>
@@ -323,16 +409,12 @@ body {
   <div class="modal-box" style="text-align:left">
     <div class="modal-title">确认角色名</div>
     <div class="modal-content" style="white-space:normal">
-      你确定使用 <span class="name-highlight" id="nameConfirmName"></span>
-      <span class="copy-icon" id="nameConfirmCopy" title="复制">📋</span>
-      作为你的角色名报名吗？<br><br>
-      请提供角色名以方便他人组队。<br>
-      请在下方输入你的名字确认：
+      你的角色名是 <span class="name-highlight" id="nameConfirmName"></span><br><br>
+      建议修改为游戏内角色名，方便他人组队。
     </div>
-    <input class="name-confirm-input" id="nameConfirmInput" placeholder="输入上面的名字确认">
     <div class="modal-btns" style="margin-top:12px">
-      <button class="modal-cancel" id="nameConfirmCancel">取消，我去改名</button>
-      <button class="modal-confirm disabled" id="nameConfirmOk" disabled>确认使用</button>
+      <button class="modal-cancel" id="nameConfirmCancel">去改名</button>
+      <button class="modal-confirm" id="nameConfirmOk">继续报名</button>
     </div>
   </div>
 </div>
@@ -373,6 +455,7 @@ var state = {
   loading: true,
   actionLoading: false,
   proxyList: [], // [{nickname, role}] 帮报名列表，报名时带上
+  expandedSlots: {}, // {pdtHour: true} 展开的时段
   // Signup modal state
   signupMode: null, // 'quick' | 'create' | null
   signupHour: null,
@@ -574,7 +657,16 @@ function renderSignupModal() {
 }
 
 function renderProxyTags() {
-  // 代报名 UI 已移到 header，此函数保留为空操作
+  var container = document.getElementById('signupProxyTags');
+  if (!container) return;
+  var html = '';
+  state.proxyList.forEach(function(p, i) {
+    var rc = p.role === '霖霖' ? 'role-linlin' : 'role-output';
+    html += '<span class="signup-proxy-tag ' + rc + '">' + esc(p.nickname);
+    html += ' ' + (p.role === '霖霖' ? '🟢' : '🔵');
+    html += '<span class="proxy-remove" onclick="window._removeProxyFromList(' + i + ')"> ×</span></span>';
+  });
+  container.innerHTML = html;
 }
 
 window._signupSetRole = function(role) {
@@ -801,32 +893,13 @@ function showNameConfirm(name) {
   return new Promise(function(resolve) {
     var mask = document.getElementById('nameConfirmModal');
     var nameSpan = document.getElementById('nameConfirmName');
-    var input = document.getElementById('nameConfirmInput');
     var okBtn = document.getElementById('nameConfirmOk');
     var cancelBtn = document.getElementById('nameConfirmCancel');
-    var copyBtn = document.getElementById('nameConfirmCopy');
 
     nameSpan.textContent = name;
-    input.value = '';
-    okBtn.disabled = true;
-    okBtn.classList.add('disabled');
     mask.classList.add('show');
 
-    input.oninput = function() {
-      var match = input.value.trim() === name;
-      okBtn.disabled = !match;
-      okBtn.classList.toggle('disabled', !match);
-    };
-
-    copyBtn.onclick = function() {
-      navigator.clipboard.writeText(name).then(function() {
-        showToast('已复制');
-      });
-    };
-
-    okBtn.onclick = function() {
-      if (!okBtn.disabled) { mask.classList.remove('show'); resolve(true); }
-    };
+    okBtn.onclick = function() { mask.classList.remove('show'); resolve(true); };
     cancelBtn.onclick = function() { mask.classList.remove('show'); resolve(false); };
   });
 }
@@ -852,6 +925,39 @@ function showModal(title, content, confirmText, cancelText) {
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// ===== 智能推荐 =====
+function getRecommendation() {
+  var s = state;
+  var best = null;
+  for (var h in s.slotsMap) {
+    var data = s.slotsMap[h];
+    data.cars.forEach(function(car) {
+      if (car.full) return;
+      var outputCount = 0, linlinCount = 0;
+      car.members.forEach(function(m) {
+        if (m.role === '霖霖') linlinCount++; else outputCount++;
+      });
+      var need = null, needCount = 0;
+      if (linlinCount < 3 && outputCount >= linlinCount + 2) {
+        need = '霖霖'; needCount = 3 - linlinCount;
+      } else if (outputCount < 5 && linlinCount >= outputCount) {
+        need = '输出'; needCount = 5 - outputCount;
+      }
+      if (need && car.count >= 5 && (!best || car.count > best.carCount)) {
+        best = {
+          hour: +h,
+          carIndex: car.carIndex,
+          neededRole: need,
+          neededCount: needCount,
+          carCount: car.count,
+          display: pdtToLocal(s.weekDate, +h).display
+        };
+      }
+    });
+  }
+  return best;
+}
+
 // ===== 渲染 =====
 function render() {
   var s = state;
@@ -859,7 +965,7 @@ function render() {
 
   var html = '';
 
-  // 头部
+  // ===== 头部（精简：只保留标题+昵称）=====
   html += '<div class="header">';
   html += '<div class="title-row"><span class="title">燕云十六声</span><span class="subtitle">百业十人本报名</span></div>';
   html += '<div class="week-badge">' + esc(s.weekLabel) + '</div>';
@@ -868,45 +974,44 @@ function render() {
   html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
   html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
   html += '</div>';
-  // 帮别人报名（常驻在 header 里）
-  html += '<div class="proxy-section">';
-  html += '<div class="proxy-title-row"><span class="proxy-title">帮别人报名</span></div>';
-  if (s.proxyList.length > 0) {
-    html += '<div class="proxy-tags">';
-    s.proxyList.forEach(function(p, i) {
-      var rc = p.role === '霖霖' ? 'proxy-tag-linlin' : 'proxy-tag-output';
-      html += '<span class="proxy-tag ' + rc + '">' + esc(p.nickname);
-      html += ' ' + (p.role === '霖霖' ? '🟢' : '🔵');
-      html += '<span class="proxy-tag-x" onclick="window._removeProxyFromList(' + i + ')">×</span></span>';
-    });
-    html += '</div>';
-  }
-  html += '<div class="proxy-input-row">';
-  html += '<input id="proxyNameInput" class="proxy-name-input" placeholder="名字" maxlength="12">';
-  html += '<select id="proxyRoleSelect" class="proxy-role-select"><option value="输出">🔵 输出</option><option value="霖霖">🟢 霖霖</option></select>';
-  html += '<button class="proxy-add-btn" onclick="window._addProxyToList()">+</button>';
-  html += '</div></div>';
-  // 恢复码 + 恢复按钮
+  // 恢复码（精简显示）
   html += '<div class="recovery-row">';
   if (s.recoveryCode) {
-    html += '<span class="recovery-label">恢复码：<strong>' + esc(s.recoveryCode) + '</strong>（换设备时用）</span>';
+    html += '<span class="recovery-label">恢复码：<strong>' + esc(s.recoveryCode) + '</strong></span>';
   }
   html += '<button class="recover-btn" onclick="window._recover()">恢复账号</button>';
   html += '</div>';
   html += '</div>';
 
-  // 我的状态
+  // ===== 我的状态卡片（增强版）=====
   if (s.myRegistration) {
-    html += '<div class="my-status"><div class="status-top">';
-    html += '<div class="status-left"><span class="status-icon">✅</span>';
-    html += '<span class="status-text">已报名 ' + esc(s.myRegistration.localDisplay) + ' 第' + (s.myRegistration.carIndex+1) + '车</span></div>';
-    html += '<div class="status-btns">';
-    html += '<button class="cal-btn" onclick="window._gcal()">添加到日历</button>';
+    // 找到我的角色
+    var myRole = '输出';
+    var regData = s.slotsMap[s.myRegistration.hour];
+    if (regData) {
+      regData.cars.forEach(function(car) {
+        car.members.forEach(function(m) {
+          if (m.openid === s.userId) myRole = m.role;
+        });
+      });
+    }
+    var roleEmoji = myRole === '霖霖' ? '🟢' : '🔵';
+    var roleClass = myRole === '霖霖' ? 'linlin' : 'output';
+    html += '<div class="status-card">';
+    html += '<div class="status-main">';
+    html += '<span class="status-check">✅</span>';
+    html += '<div class="status-info">';
+    html += '<div class="status-line1">已报名 ' + esc(s.myRegistration.localDisplay) + '</div>';
+    html += '<div class="status-line2">第' + (s.myRegistration.carIndex+1) + '车 · <span class="status-role ' + roleClass + '">' + roleEmoji + ' ' + esc(myRole) + '</span></div>';
+    html += '</div></div>';
+    html += '<div class="status-actions">';
+    html += '<button class="cal-btn" onclick="window._gcal()">添加日历</button>';
+    html += '<button class="action-btn move-btn" style="font-size:12px" onclick="window._quickMovePrompt()">挪动</button>';
     html += '<button class="leave-btn" onclick="window._leave()">退出</button>';
-    html += '</div></div></div>';
+    html += '</div></div>';
   }
 
-  // 入口按钮（未报名时显示）
+  // ===== 入口按钮（未报名时）=====
   if (!s.myRegistration && !s.actionLoading) {
     html += '<div class="entry-buttons">';
     html += '<button class="entry-btn entry-btn-quick" onclick="window._quickJoin()">⚡ 快速加入</button>';
@@ -914,7 +1019,7 @@ function render() {
     html += '</div>';
   }
 
-  // 每周自动
+  // ===== 每周自动 =====
   html += '<div class="recurring-bar ' + (s.isRecurring ? 'recurring-on' : 'recurring-off') + '" onclick="window._toggleRec()">';
   html += '<div class="recurring-toggle"><div class="toggle-dot ' + (s.isRecurring ? 'on' : '') + '"><div class="dot-inner"></div></div>';
   html += '<span class="recurring-label">每周自动报名</span></div>';
@@ -922,28 +1027,76 @@ function render() {
   if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
   html += '</div>';
 
-  // 时间段
-  html += '<div class="time-slots">';
+  // ===== 时段热度 Heatmap =====
+  var maxCount = 1;
+  s.timeSlots.forEach(function(slot) {
+    var d = s.slotsMap[slot.pdtHour];
+    if (d && d.totalCount > maxCount) maxCount = d.totalCount;
+  });
+  html += '<div class="section-title">📊 时段热度</div>';
+  html += '<div class="heatmap">';
+  s.timeSlots.forEach(function(slot) {
+    var d = s.slotsMap[slot.pdtHour];
+    var count = d ? d.totalCount : 0;
+    var pct = Math.max(6, Math.round((count / maxCount) * 100));
+    var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
+    html += '<div class="heatmap-col" onclick="window._toggleSlot(' + slot.pdtHour + ')">';
+    html += '<span class="heatmap-count">' + count + '</span>';
+    html += '<div class="heatmap-bar ' + tier + '" style="height:' + pct + '%"></div>';
+    html += '<span class="heatmap-label">' + esc(slot.short.replace(':00 ', '').replace('AM','a').replace('PM','p')) + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // ===== 推荐卡片（未报名时显示）=====
+  if (!s.myRegistration) {
+    var rec = getRecommendation();
+    if (rec) {
+      var recEmoji = rec.neededRole === '霖霖' ? '🟢' : '🔵';
+      html += '<div class="recommend-card">';
+      html += '<span class="recommend-badge">💡 推荐加入</span>';
+      html += '<div class="recommend-text">' + esc(rec.display) + ' — 缺' + rec.neededCount + '名' + esc(rec.neededRole) + '!</div>';
+      html += '<div class="recommend-detail">第' + (rec.carIndex+1) + '车: ' + rec.carCount + '/10</div>';
+      html += '<button class="recommend-btn" onclick="window._joinRecommend(' + rec.hour + ',\'' + esc(rec.neededRole) + '\')">以' + recEmoji + esc(rec.neededRole) + '加入</button>';
+      html += '</div>';
+    }
+  }
+
+  // ===== 紧凑时段列表 =====
+  html += '<div class="section-title">全部时段</div>';
   s.timeSlots.forEach(function(slot) {
     var data = s.slotsMap[slot.pdtHour];
-    html += '<div class="slot-block">';
-    html += '<div class="slot-header"><div class="hour-info">';
-    html += '<span class="hour-text">' + esc(slot.display) + '</span>';
-    if (data) html += '<span class="total-count">' + data.totalCount + '人</span>';
-    html += '</div><div>';
+    var count = data ? data.totalCount : 0;
+    var isExpanded = !!s.expandedSlots[slot.pdtHour];
+    var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour;
+    var allFull = data && data.cars.length > 0 && data.cars.every(function(c) { return c.full; });
+    var isHot = count >= 20;
 
+    // Slot row
+    var rowClass = 'slot-row' + (isHot ? ' hot' : '') + (isCurrent ? ' current' : '') + (isExpanded ? ' expanded' : '');
+    html += '<div class="' + rowClass + '" onclick="window._toggleSlot(' + slot.pdtHour + ')">';
+    html += '<div class="slot-row-left">';
+    html += '<span class="slot-row-chevron">▸</span>';
+    html += '<span class="slot-row-time">' + esc(slot.display) + '</span>';
+    html += '<span class="slot-row-count">' + count + '人</span>';
+    if (isHot) html += '<span class="slot-row-hot">HOT</span>';
+    if (isCurrent) html += '<span class="current-badge" style="padding:2px 8px;font-size:11px">当前</span>';
+    html += '</div>';
+
+    // Action button (stop propagation)
     if (!s.myRegistration && !s.actionLoading) {
-      html += '<button class="action-btn join-btn" onclick="window._joinSlot(' + slot.pdtHour + ')">加入</button>';
-    } else if (s.myRegistration && s.myRegistration.hour !== slot.pdtHour && !s.actionLoading) {
-      html += '<button class="action-btn move-btn" onclick="window._move(' + slot.pdtHour + ')">挪到这里</button>';
-    } else if (s.myRegistration && s.myRegistration.hour === slot.pdtHour) {
-      html += '<span class="current-badge">当前</span>';
+      if (allFull) {
+        html += '<button class="action-btn create-btn" onclick="event.stopPropagation();window._createTeamAt(' + slot.pdtHour + ')">开新车</button>';
+      } else {
+        html += '<button class="action-btn join-btn" onclick="event.stopPropagation();window._joinSlot(' + slot.pdtHour + ')">加入</button>';
+      }
+    } else if (s.myRegistration && !isCurrent && !s.actionLoading) {
+      html += '<button class="action-btn move-btn" onclick="event.stopPropagation();window._move(' + slot.pdtHour + ')">挪到这里</button>';
     }
+    html += '</div>';
 
-    html += '</div></div>';
-
-    // 车辆
-    html += '<div class="cars-area">';
+    // Expandable car details
+    html += '<div class="slot-cars ' + (isExpanded ? 'show' : '') + '">';
     if (data && data.cars.length > 0) {
       data.cars.forEach(function(car) {
         var leaderNick = '';
@@ -953,14 +1106,15 @@ function render() {
         }
         var carTitle = '第' + (car.carIndex+1) + '车';
         if (leaderNick) carTitle += ' 👑' + esc(leaderNick);
+        var pct = car.count * 10;
 
         html += '<div class="car-card ' + (car.full ? 'full' : '') + '">';
         html += '<div class="car-top"><span class="car-name">' + carTitle + '</span>';
         html += '<span class="car-count">' + car.count + '/10</span></div>';
-        html += '<div class="car-bar"><div class="car-bar-fill ' + (car.full ? 'bar-full' : '') + '" style="width:' + (car.count*10) + '%"></div></div>';
+        html += '<div class="car-bar"><div class="car-bar-fill ' + (car.full ? 'bar-full' : '') + '" style="width:' + pct + '%"></div></div>';
+        html += '<div class="car-bar-text ' + (car.full ? 'bar-full-text' : '') + '">' + pct + '% — ' + (car.full ? '已满' : '还差' + (10 - car.count) + '人') + '</div>';
         html += '<div class="members">';
 
-        // Sort: leader first
         var sortedMembers = car.members.slice();
         if (car.leader) {
           sortedMembers.sort(function(a, b) {
@@ -997,9 +1151,8 @@ function render() {
     } else {
       html += '<div class="empty-hint">虚位以待</div>';
     }
-    html += '</div></div>';
+    html += '</div>';
   });
-  html += '</div>';
 
   // 底部
   html += '<div class="footer">';
@@ -1030,6 +1183,35 @@ window._saveNick = saveNickname;
 window._toggleRec = toggleRecurring;
 window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
+
+// 展开/折叠时段
+window._toggleSlot = function(pdtHour) {
+  state.expandedSlots[pdtHour] = !state.expandedSlots[pdtHour];
+  render();
+};
+
+// 推荐卡片一键加入
+window._joinRecommend = function(hour, role) {
+  state.signupRole = role;
+  openSignupModal('quick', hour);
+};
+
+// 满车时段 → 创建车队
+window._createTeamAt = function(hour) {
+  openSignupModal('create', hour);
+};
+
+// 状态卡片快捷挪动
+window._quickMovePrompt = async function() {
+  if (!state.myRegistration) return;
+  // 弹出时间选择
+  var options = state.timeSlots.filter(function(s) { return s.pdtHour !== state.myRegistration.hour; });
+  if (options.length === 0) return;
+  // 使用第一个非当前时段的显示，让用户从slot列表里选
+  showToast('请在下方时段列表中点"挪到这里"');
+};
+
+// 代报名（移到 signup modal 内）
 window._addProxyToList = function() {
   var nameEl = document.getElementById('proxyNameInput');
   var roleEl = document.getElementById('proxyRoleSelect');
@@ -1037,11 +1219,11 @@ window._addProxyToList = function() {
   if (!name) return;
   state.proxyList.push({ nickname: name, role: roleEl.value || '输出' });
   nameEl.value = '';
-  render();
+  renderSignupModal();
 };
 window._removeProxyFromList = function(idx) {
   state.proxyList.splice(idx, 1);
-  render();
+  renderSignupModal();
 };
 
 // 启动

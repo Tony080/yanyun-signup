@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UX Mock Proposals - Yanyun Signup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0f; color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 15px; line-height: 1.6;
+}
+
+/* Navigation */
+.top-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(10,10,15,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(240,180,41,0.15);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px;
+}
+.nav-btn {
+  padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: 1px solid #333; background: transparent; color: #8b949e;
+  transition: all 0.3s;
+}
+.nav-btn:hover { border-color: #f0b429; color: #f0b429; }
+.nav-btn.active { background: rgba(240,180,41,0.15); border-color: #f0b429; color: #f0b429; }
+
+/* Sections */
+.section { display: none; padding: 70px 20px 40px; }
+.section.active { display: block; }
+
+/* Pain Points */
+.pain-section { max-width: 800px; margin: 0 auto; }
+.pain-title {
+  font-size: 28px; font-weight: bold; color: #f0b429; text-align: center;
+  margin-bottom: 8px;
+}
+.pain-subtitle { text-align: center; color: #8b949e; margin-bottom: 32px; font-size: 15px; }
+.pain-card {
+  background: #161b22; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  border-left: 4px solid #f85149;
+}
+.pain-card h3 { color: #f85149; font-size: 16px; margin-bottom: 8px; }
+.pain-card p { color: #c9d1d9; font-size: 14px; }
+.pain-card .platform-tags { margin-top: 8px; display: flex; gap: 6px; }
+.pain-card .ptag {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+}
+.ptag-web { background: rgba(56,139,253,0.15); color: #58a6ff; }
+.ptag-mini { background: rgba(63,185,80,0.15); color: #3fb950; }
+.ptag-dc { background: rgba(136,87,229,0.15); color: #a371f7; }
+
+/* Mock container */
+.mock-container {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; justify-content: center;
+}
+.mock-title {
+  font-size: 28px; font-weight: bold; color: #f0b429; text-align: center;
+  margin-bottom: 4px; width: 100%;
+}
+.mock-subtitle { text-align: center; color: #8b949e; margin-bottom: 32px; font-size: 15px; width: 100%; }
+
+/* Phone frame */
+.phone-frame {
+  width: 375px; flex-shrink: 0;
+  background: #0d1117; border-radius: 24px; border: 2px solid #333;
+  padding: 16px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.phone-notch {
+  width: 120px; height: 6px; background: #333; border-radius: 3px;
+  margin: 0 auto 16px;
+}
+
+/* Annotations */
+.annotations { flex: 1; min-width: 300px; }
+.anno-card {
+  padding: 16px; border-radius: 10px; margin-bottom: 12px;
+  border-left: 3px solid;
+}
+.anno-card h4 { font-size: 15px; margin-bottom: 4px; }
+.anno-card p { font-size: 13px; color: #8b949e; }
+
+/* === MOCK A components === */
+.ma-header {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  border: 1px solid rgba(240,180,41,0.15);
+}
+.ma-header-title { font-size: 18px; font-weight: bold; color: #f0b429; }
+.ma-header-week { font-size: 13px; color: #8b949e; margin-top: 2px; }
+
+.ma-status {
+  background: rgba(35,134,54,0.15); border: 1px solid rgba(35,134,54,0.3);
+  border-radius: 10px; padding: 12px; margin-bottom: 10px;
+}
+.ma-status-top { display: flex; justify-content: space-between; align-items: center; }
+.ma-status-text { color: #3fb950; font-size: 14px; }
+.ma-status-detail { font-size: 13px; color: #c9d1d9; margin-top: 4px; }
+.ma-status-actions { display: flex; gap: 8px; margin-top: 8px; }
+.ma-btn-move {
+  background: rgba(56,139,253,0.15); color: #58a6ff; padding: 5px 14px;
+  border-radius: 6px; font-size: 12px; border: 1px solid rgba(56,139,253,0.3);
+}
+.ma-btn-leave {
+  background: rgba(248,81,73,0.15); color: #f85149; padding: 5px 14px;
+  border-radius: 6px; font-size: 12px; border: 1px solid rgba(248,81,73,0.3);
+}
+
+.ma-recurring {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.25);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+}
+.ma-recurring-left { display: flex; align-items: center; gap: 8px; }
+.ma-toggle {
+  width: 36px; height: 20px; border-radius: 10px; background: #238636;
+  position: relative;
+}
+.ma-toggle::after {
+  content: ''; position: absolute; right: 3px; top: 3px;
+  width: 14px; height: 14px; border-radius: 50%; background: #fff;
+}
+.ma-recurring-label { font-size: 12px; color: #c9d1d9; }
+.ma-recurring-hint { font-size: 11px; color: #3fb950; }
+
+/* Heatmap */
+.ma-section-title { font-size: 14px; color: #8b949e; margin-bottom: 8px; font-weight: 600; }
+.ma-heatmap {
+  display: flex; gap: 4px; align-items: flex-end; height: 80px;
+  margin-bottom: 12px; padding: 0 4px;
+}
+.ma-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.ma-bar {
+  width: 100%; border-radius: 4px 4px 0 0; min-height: 6px;
+  transition: height 0.3s;
+}
+.ma-bar-label { font-size: 10px; color: #6e7681; margin-top: 3px; }
+.ma-bar-count { font-size: 9px; color: #8b949e; margin-bottom: 2px; }
+
+/* Recommend card */
+.ma-recommend {
+  background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.3);
+  border-radius: 10px; padding: 12px; margin-bottom: 12px;
+}
+.ma-recommend-badge {
+  display: inline-block; background: rgba(139,92,246,0.2); color: #a78bfa;
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-bottom: 6px;
+}
+.ma-recommend-text { font-size: 13px; color: #e6edf3; }
+.ma-recommend-detail { font-size: 12px; color: #8b949e; margin: 4px 0 8px; }
+.ma-recommend-btn {
+  background: #238636; color: #fff; border: none; border-radius: 6px;
+  padding: 6px 16px; font-size: 12px; font-weight: bold;
+}
+
+/* Slot list */
+.ma-slot-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #161b22; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+  border: 1px solid #21262d;
+}
+.ma-slot-row.hot { border-color: rgba(240,180,41,0.3); }
+.ma-slot-info { }
+.ma-slot-time { font-size: 14px; color: #e6edf3; }
+.ma-slot-count { font-size: 11px; color: #8b949e; }
+.ma-slot-btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: bold;
+  border: none;
+}
+.ma-slot-btn.join { background: rgba(56,139,253,0.15); color: #58a6ff; }
+.ma-slot-btn.create { background: #238636; color: #fff; }
+.hot-tag { color: #f0b429; font-size: 11px; font-weight: bold; margin-left: 6px; }
+
+/* === MOCK B components === */
+.mb-onboarding {
+  background: linear-gradient(135deg, #2d1b69, #1a1a2e);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+  border: 1px solid rgba(139,92,246,0.3);
+}
+.mb-onb-title { font-size: 18px; font-weight: bold; color: #e6edf3; margin-bottom: 10px; }
+.mb-onb-item { font-size: 13px; color: #c9d1d9; margin-bottom: 4px; padding-left: 20px; position: relative; }
+.mb-onb-item::before { content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border-radius: 50%; }
+.mb-onb-item:nth-child(2)::before { background: #238636; }
+.mb-onb-item:nth-child(3)::before { background: #f0b429; }
+.mb-onb-item:nth-child(4)::before { background: #58a6ff; }
+.mb-onb-btn {
+  display: block; width: 100%; margin-top: 12px; padding: 10px;
+  background: #8b5cf6; color: #fff; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: bold; text-align: center;
+}
+.mb-onb-dots { text-align: center; color: #555; margin-top: 8px; font-size: 18px; letter-spacing: 6px; }
+
+.mb-step-title { font-size: 14px; color: #8b949e; margin-bottom: 10px; font-weight: 600; }
+
+.mb-time-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px; }
+.mb-time-card {
+  min-width: 140px; border-radius: 10px; padding: 12px; flex-shrink: 0;
+}
+.mb-tc-blue { background: rgba(56,139,253,0.12); border: 2px solid #58a6ff; }
+.mb-tc-amber { background: rgba(240,180,41,0.1); border: 1px solid rgba(240,180,41,0.3); }
+.mb-tc-green { background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.3); }
+.mb-tc-time { font-size: 16px; font-weight: bold; color: #e6edf3; }
+.mb-tc-count { font-size: 12px; color: #8b949e; margin: 4px 0; }
+.mb-tc-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+.mb-tc-fill { height: 100%; border-radius: 3px; }
+.mb-tc-pct { font-size: 11px; }
+
+.mb-swipe-hint { text-align: center; color: #484f58; font-size: 12px; margin-bottom: 12px; }
+
+.mb-role-section {
+  background: #161b22; border-radius: 10px; padding: 12px; margin-bottom: 10px;
+  border: 1px solid #21262d;
+}
+.mb-role-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.mb-role-btn {
+  flex: 1; padding: 8px; border-radius: 6px; text-align: center; font-size: 13px;
+  border: 2px solid transparent;
+}
+.mb-role-btn.dps-active { background: rgba(56,139,253,0.25); border-color: #58a6ff; color: #79c0ff; }
+.mb-role-btn.heal { background: rgba(63,185,80,0.1); color: #7ee787; border-color: #21262d; }
+.mb-team-hint { font-size: 12px; color: #f0b429; }
+
+.mb-cta {
+  display: block; width: 100%; padding: 14px; border: none; border-radius: 10px;
+  font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 12px;
+  background: #238636; color: #fff;
+}
+
+.mb-friends {
+  background: #161b22; border-radius: 10px; padding: 12px;
+  border: 1px solid #21262d;
+}
+.mb-friends-title { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+.mb-friend-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mb-friend-tag {
+  padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  display: flex; align-items: center; gap: 4px;
+}
+.mb-ft-dps { background: rgba(56,139,253,0.12); color: #79c0ff; }
+.mb-ft-heal { background: rgba(63,185,80,0.12); color: #7ee787; }
+.mb-ft-x { opacity: 0.5; cursor: pointer; }
+.mb-add-row { display: flex; gap: 6px; }
+.mb-add-input {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid #21262d;
+  border-radius: 6px; padding: 6px 10px; color: #e6edf3; font-size: 12px;
+}
+.mb-add-btn {
+  background: rgba(255,255,255,0.08); color: #c9d1d9; border: 1px solid #21262d;
+  border-radius: 6px; width: 32px; font-size: 16px; text-align: center;
+}
+
+/* === MOCK C components === */
+.mc-header {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+  border: 1px solid rgba(240,180,41,0.15);
+}
+.mc-header-left {}
+.mc-header-title { font-size: 16px; font-weight: bold; color: #f0b429; }
+.mc-header-player { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.mc-header-week {
+  background: rgba(240,180,41,0.12); color: #f0b429;
+  padding: 4px 10px; border-radius: 12px; font-size: 12px;
+}
+
+.mc-tl-label { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+.mc-timeline {
+  display: flex; gap: 6px; align-items: center; justify-content: space-between;
+  background: #161b22; border-radius: 12px; padding: 12px 10px; margin-bottom: 6px;
+}
+.mc-bubble {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;
+}
+.mc-dot {
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: rgba(255,255,255,0.7); font-weight: bold;
+  transition: all 0.2s;
+}
+.mc-dot.selected { box-shadow: 0 0 0 3px #fff; }
+.mc-bubble-label { font-size: 10px; color: #6e7681; }
+.mc-legend { font-size: 10px; color: #484f58; margin-bottom: 12px; padding: 0 4px; }
+
+.mc-slot-title { font-size: 16px; font-weight: bold; color: #e6edf3; margin-bottom: 10px; }
+
+.mc-car-card {
+  background: #161b22; border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  border: 1px solid #21262d;
+}
+.mc-car-card.my-car { border-color: rgba(56,139,253,0.5); }
+.mc-car-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.mc-car-name { font-size: 14px; color: #e6edf3; }
+.mc-car-count { font-size: 12px; color: #8b949e; }
+
+.mc-car-body { display: flex; gap: 14px; }
+.mc-donut-wrap { flex-shrink: 0; text-align: center; }
+.mc-donut {
+  width: 60px; height: 60px; border-radius: 50%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.mc-donut-inner {
+  width: 32px; height: 32px; border-radius: 50%; background: #161b22;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #c9d1d9; font-weight: bold;
+}
+.mc-donut-label { font-size: 10px; color: #8b949e; margin-top: 4px; }
+
+.mc-members { flex: 1; }
+.mc-member { font-size: 12px; padding: 2px 0; }
+.mc-member.me { color: #58a6ff; font-weight: bold; }
+.mc-member.normal { color: #c9d1d9; }
+.mc-member.proxy { color: #6e7681; }
+.mc-more { color: #484f58; font-size: 11px; margin-top: 4px; }
+
+.mc-progress { margin-top: 10px; }
+.mc-bar { height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+.mc-bar-fill { height: 100%; border-radius: 4px; }
+.mc-bar-text { font-size: 11px; margin-top: 3px; }
+
+/* Sticky join bar */
+.mc-join-bar {
+  background: #238636; border-radius: 10px; padding: 12px; margin-bottom: 10px;
+  text-align: center;
+}
+.mc-join-main { font-size: 16px; font-weight: bold; color: #fff; }
+.mc-join-sub { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+/* Bottom tabs */
+.mc-tabs {
+  display: flex; gap: 4px; background: #161b22; border-radius: 10px;
+  padding: 8px; border: 1px solid #21262d;
+}
+.mc-tab {
+  flex: 1; padding: 8px; border-radius: 6px; text-align: center;
+  font-size: 12px; font-weight: 600;
+}
+.mc-tab.active { background: rgba(56,139,253,0.15); color: #58a6ff; }
+.mc-tab.inactive { color: #6e7681; }
+
+/* Common improvements section */
+.common-section { max-width: 800px; margin: 0 auto; }
+.common-title {
+  font-size: 28px; font-weight: bold; color: #f0b429; text-align: center;
+  margin-bottom: 8px;
+}
+.common-subtitle { text-align: center; color: #8b949e; margin-bottom: 32px; font-size: 15px; }
+.common-card {
+  background: #161b22; border-radius: 12px; padding: 20px; margin-bottom: 12px;
+  border-left: 4px solid #238636;
+}
+.common-card h3 { color: #3fb950; font-size: 16px; margin-bottom: 6px; }
+.common-card .before-after { display: flex; gap: 16px; margin-top: 10px; }
+.common-card .ba-col { flex: 1; }
+.common-card .ba-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+.common-card .ba-label.before { color: #f85149; }
+.common-card .ba-label.after { color: #3fb950; }
+.common-card .ba-box {
+  padding: 10px; border-radius: 8px; font-size: 12px; color: #c9d1d9;
+}
+.common-card .ba-box.before-box { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.2); }
+.common-card .ba-box.after-box { background: rgba(35,134,54,0.08); border: 1px solid rgba(35,134,54,0.2); }
+
+/* Comparison table */
+.compare-table {
+  width: 100%; border-collapse: collapse; margin-top: 20px;
+  background: #161b22; border-radius: 12px; overflow: hidden;
+}
+.compare-table th {
+  padding: 12px 16px; text-align: left; font-size: 13px; color: #f0b429;
+  background: rgba(240,180,41,0.08); border-bottom: 1px solid #21262d;
+}
+.compare-table td {
+  padding: 10px 16px; font-size: 13px; color: #c9d1d9;
+  border-bottom: 1px solid #21262d;
+}
+.compare-table tr:last-child td { border-bottom: none; }
+.star { color: #f0b429; }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+  <button class="nav-btn active" onclick="showSection('pain')">Pain Points</button>
+  <button class="nav-btn" onclick="showSection('mockA')">A: Dashboard</button>
+  <button class="nav-btn" onclick="showSection('mockB')">B: Card Flow</button>
+  <button class="nav-btn" onclick="showSection('mockC')">C: Timeline</button>
+  <button class="nav-btn" onclick="showSection('common')">Common Fixes</button>
+</div>
+
+<!-- ==================== PAIN POINTS ==================== -->
+<div class="section active" id="pain">
+  <div class="pain-section">
+    <div class="pain-title">Current UX Pain Points</div>
+    <div class="pain-subtitle">Based on review of Web, WeChat Mini Program, and Discord interactions</div>
+
+    <div class="pain-card">
+      <h3>1. Header Information Overload</h3>
+      <p>Header area packs too many functions: nickname editing, proxy signup input, recovery code display. First-time users can't quickly understand "what should I do?"</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-web">Web</span>
+        <span class="ptag ptag-mini">Mini Program</span>
+      </div>
+    </div>
+
+    <div class="pain-card">
+      <h3>2. Unclear Entry Points</h3>
+      <p>"Quick Join" vs "Create Team" -- the difference is not obvious to new users. No onboarding explains the two modes. Users unsure which button to press.</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-web">Web</span>
+        <span class="ptag ptag-mini">Mini Program</span>
+        <span class="ptag ptag-dc">Discord</span>
+      </div>
+    </div>
+
+    <div class="pain-card">
+      <h3>3. Poor Time Slot Readability</h3>
+      <p>9 time slots displayed flat with high info density but no visual hierarchy. Can't quickly see which slot is popular or has availability.</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-web">Web</span>
+        <span class="ptag ptag-mini">Mini Program</span>
+      </div>
+    </div>
+
+    <div class="pain-card">
+      <h3>4. Inconsistent Cross-Platform UX</h3>
+      <p>Discord uses multi-step serial interaction (mode -> time -> role -> auto), non-reversible. Web/Mini use modal one-shot. No unified visual language.</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-dc">Discord</span>
+      </div>
+    </div>
+
+    <div class="pain-card">
+      <h3>5. Weak Car Visualization</h3>
+      <p>Progress bar is only 3px -- barely visible. Members are tag-style with no sense of team composition (DPS/Healer ratio). No guidance on "which car needs what role?"</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-web">Web</span>
+        <span class="ptag ptag-mini">Mini Program</span>
+      </div>
+    </div>
+
+    <div class="pain-card">
+      <h3>6. Excessive Confirmation Friction</h3>
+      <p>Default name confirmation requires manually typing name back -- too much friction. Leave/move lacks quick actions. Proxy add flow is clunky.</p>
+      <div class="platform-tags">
+        <span class="ptag ptag-web">Web</span>
+        <span class="ptag ptag-mini">Mini Program</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MOCK A ==================== -->
+<div class="section" id="mockA">
+  <div class="mock-container">
+    <div class="mock-title">A: Dashboard Focus</div>
+    <div class="mock-subtitle">One-screen overview with smart recommendations -- for experienced users who want fast decisions</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <!-- Header -->
+      <div class="ma-header">
+        <div class="ma-header-title">燕云十六声 · 百业十人本</div>
+        <div class="ma-header-week">4/5 周日 2:00PM - 10:00PM (本地时间)</div>
+      </div>
+
+      <!-- My Status -->
+      <div class="ma-status">
+        <div class="ma-status-top">
+          <span class="ma-status-text">✅ 已报名</span>
+        </div>
+        <div class="ma-status-detail">周日 5:00PM · 第2车 · 🔵输出</div>
+        <div class="ma-status-actions">
+          <span class="ma-btn-move">挪动</span>
+          <span class="ma-btn-leave">退出</span>
+        </div>
+      </div>
+
+      <!-- Recurring -->
+      <div class="ma-recurring">
+        <div class="ma-recurring-left">
+          <div class="ma-toggle"></div>
+          <span class="ma-recurring-label">每周自动报名</span>
+        </div>
+        <span class="ma-recurring-hint">周日 5:00PM</span>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="ma-section-title">📊 时段热度</div>
+      <div class="ma-heatmap">
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">18</span>
+          <div class="ma-bar" style="height:36px;background:#238636"></div>
+          <span class="ma-bar-label">2PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">25</span>
+          <div class="ma-bar" style="height:50px;background:#3fb950"></div>
+          <span class="ma-bar-label">3PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">30</span>
+          <div class="ma-bar" style="height:60px;background:#f0b429"></div>
+          <span class="ma-bar-label">4PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">28</span>
+          <div class="ma-bar" style="height:56px;background:#f0b429"></div>
+          <span class="ma-bar-label">5PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">12</span>
+          <div class="ma-bar" style="height:24px;background:#238636"></div>
+          <span class="ma-bar-label">6PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">8</span>
+          <div class="ma-bar" style="height:16px;background:#21262d"></div>
+          <span class="ma-bar-label">7PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">20</span>
+          <div class="ma-bar" style="height:40px;background:#238636"></div>
+          <span class="ma-bar-label">8PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">10</span>
+          <div class="ma-bar" style="height:20px;background:#21262d"></div>
+          <span class="ma-bar-label">9PM</span>
+        </div>
+        <div class="ma-bar-wrap">
+          <span class="ma-bar-count">5</span>
+          <div class="ma-bar" style="height:10px;background:#21262d"></div>
+          <span class="ma-bar-label">10P</span>
+        </div>
+      </div>
+
+      <!-- Smart Recommendation -->
+      <div class="ma-recommend">
+        <span class="ma-recommend-badge">💡 推荐加入</span>
+        <div class="ma-recommend-text">周日 6:00PM -- 缺2名霖霖!</div>
+        <div class="ma-recommend-detail">第1车: 8/10 (7输出, 1霖霖)</div>
+        <button class="ma-recommend-btn">以霖霖加入</button>
+      </div>
+
+      <!-- Compact Slot List -->
+      <div class="ma-section-title">全部时段</div>
+      <div class="ma-slot-row">
+        <div class="ma-slot-info">
+          <div class="ma-slot-time">周日 2:00PM</div>
+          <div class="ma-slot-count">18人 · 2车</div>
+        </div>
+        <button class="ma-slot-btn join">加入</button>
+      </div>
+      <div class="ma-slot-row">
+        <div class="ma-slot-info">
+          <div class="ma-slot-time">周日 3:00PM</div>
+          <div class="ma-slot-count">25人 · 3车(1满)</div>
+        </div>
+        <button class="ma-slot-btn join">加入</button>
+      </div>
+      <div class="ma-slot-row hot">
+        <div class="ma-slot-info">
+          <div class="ma-slot-time">周日 4:00PM <span class="hot-tag">HOT</span></div>
+          <div class="ma-slot-count">30人 · 3车(全满!)</div>
+        </div>
+        <button class="ma-slot-btn create">开新车</button>
+      </div>
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#3fb950;background:rgba(35,134,54,0.08)">
+        <h4 style="color:#3fb950">1. Status Card at Top</h4>
+        <p>User's own registration status always visible at the top. No need to scroll through 9 time slots to find "where am I." Move/Leave buttons inline.</p>
+      </div>
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">2. Popularity Heatmap</h4>
+        <p>Visual bar chart replaces flat time slot list. Color + height encode slot popularity. Users instantly see which times are hot (amber) vs available (green) vs empty (gray).</p>
+      </div>
+      <div class="anno-card" style="border-color:#a78bfa;background:rgba(139,92,246,0.08)">
+        <h4 style="color:#a78bfa">3. Smart Recommendation</h4>
+        <p>System analyzes team composition gaps and recommends a slot + role. "This car needs 2 healers" -- reduces decision fatigue for casual players.</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">4. Compact Slot List</h4>
+        <p>Collapsed by default: time + count + action. Expand for car details. Reduces visual clutter from showing all car cards upfront.</p>
+      </div>
+      <div class="anno-card" style="border-color:#f85149;background:rgba(248,81,73,0.08)">
+        <h4 style="color:#f85149">5. Contextual CTA</h4>
+        <p>Full slots show "Create Car" instead of "Join." No more clicking "Join" only to be told "this slot is full."</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MOCK B ==================== -->
+<div class="section" id="mockB">
+  <div class="mock-container">
+    <div class="mock-title">B: Card Flow + Onboarding</div>
+    <div class="mock-subtitle">Guided experience with swipeable cards -- for new users who need help understanding the system</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <!-- Onboarding -->
+      <div class="mb-onboarding">
+        <div class="mb-onb-title">欢迎来到燕云十人本!</div>
+        <div class="mb-onb-item">快速加入 = 自动填充最优车队</div>
+        <div class="mb-onb-item">创建车队 = 你当车长，开新车</div>
+        <div class="mb-onb-item">每周自动 = 每周同时段自动报名</div>
+        <button class="mb-onb-btn">设置角色名 & 开始</button>
+        <div class="mb-onb-dots">&#9679; &#9675; &#9675;</div>
+      </div>
+
+      <!-- Time Cards -->
+      <div class="mb-step-title">选择时段 (左右滑动)</div>
+      <div class="mb-time-cards">
+        <div class="mb-time-card mb-tc-blue">
+          <div class="mb-tc-time">周日 3PM</div>
+          <div class="mb-tc-count">15人 · 2车</div>
+          <div class="mb-tc-bar"><div class="mb-tc-fill" style="width:60%;background:#58a6ff"></div></div>
+          <div class="mb-tc-pct" style="color:#58a6ff">60% 容量</div>
+        </div>
+        <div class="mb-time-card mb-tc-amber">
+          <div class="mb-tc-time">周日 4PM</div>
+          <div class="mb-tc-count">28人 · 3车</div>
+          <div class="mb-tc-bar"><div class="mb-tc-fill" style="width:93%;background:#f0b429"></div></div>
+          <div class="mb-tc-pct" style="color:#f0b429">93% 容量</div>
+        </div>
+        <div class="mb-time-card mb-tc-green">
+          <div class="mb-tc-time">周日 6PM</div>
+          <div class="mb-tc-count">8人 · 1车</div>
+          <div class="mb-tc-bar"><div class="mb-tc-fill" style="width:80%;background:#3fb950"></div></div>
+          <div class="mb-tc-pct" style="color:#3fb950">80% 容量</div>
+        </div>
+      </div>
+      <div class="mb-swipe-hint">&larr; 左右滑动查看更多时段 &rarr;</div>
+
+      <!-- Role Selection -->
+      <div class="mb-role-section">
+        <div class="mb-role-row">
+          <div class="mb-role-btn dps-active">🔵 输出</div>
+          <div class="mb-role-btn heal">🟢 霖霖</div>
+        </div>
+        <div class="mb-team-hint">💡 这辆车还缺: 2名霖霖</div>
+      </div>
+
+      <!-- CTA -->
+      <button class="mb-cta">以输出加入 周日 3PM</button>
+
+      <!-- Friends -->
+      <div class="mb-friends">
+        <div class="mb-friends-title">带朋友一起 (+)</div>
+        <div class="mb-friend-tags">
+          <span class="mb-friend-tag mb-ft-dps">Alice 🔵 <span class="mb-ft-x">&times;</span></span>
+          <span class="mb-friend-tag mb-ft-heal">Bob 🟢 <span class="mb-ft-x">&times;</span></span>
+        </div>
+        <div class="mb-add-row">
+          <input class="mb-add-input" placeholder="朋友名字" />
+          <button class="mb-add-btn">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#a78bfa;background:rgba(139,92,246,0.08)">
+        <h4 style="color:#a78bfa">1. Onboarding Card</h4>
+        <p>First-time users see a guided intro explaining the 3 core concepts. Dismissible with dots indicator for multi-page walkthrough. Clears the "I don't know which button to press" problem.</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">2. Swipeable Time Cards</h4>
+        <p>Replace the dropdown/flat list with visual cards. Each card shows time, people count, capacity bar, and percentage. Selected card highlighted with blue border. Feels more interactive.</p>
+      </div>
+      <div class="anno-card" style="border-color:#3fb950;background:rgba(35,134,54,0.08)">
+        <h4 style="color:#3fb950">3. Team Composition Hints</h4>
+        <p>"This car needs 2 more healers" shown when selecting role. Helps players make better team decisions, not just pick their default.</p>
+      </div>
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">4. Explicit CTA Button</h4>
+        <p>"以输出加入 周日 3PM" -- the button text says exactly what will happen. No ambiguity. No "which mode am I in?" confusion.</p>
+      </div>
+      <div class="anno-card" style="border-color:#06b6d4;background:rgba(6,182,212,0.08)">
+        <h4 style="color:#06b6d4">5. Inline Proxy (Bring Friends)</h4>
+        <p>Proxy signup moved from header to bottom of signup flow. Makes sense contextually: "I'm joining, and bringing friends with me." Reduces header clutter.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MOCK C ==================== -->
+<div class="section" id="mockC">
+  <div class="mock-container">
+    <div class="mock-title">C: Timeline + Role Ratio Visualization</div>
+    <div class="mock-subtitle">Bubble timeline with donut charts -- for players who care about team composition balance</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <!-- Header -->
+      <div class="mc-header">
+        <div class="mc-header-left">
+          <div class="mc-header-title">燕云 · 十人本</div>
+          <div class="mc-header-player">Player: Yuki</div>
+        </div>
+        <span class="mc-header-week">4月5日</span>
+      </div>
+
+      <!-- Timeline -->
+      <div class="mc-tl-label">选择时段</div>
+      <div class="mc-timeline">
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:28px;height:28px;background:#238636">18</div>
+          <span class="mc-bubble-label">2PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:32px;height:32px;background:#3fb950">25</div>
+          <span class="mc-bubble-label">3PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:36px;height:36px;background:#f0b429">30</div>
+          <span class="mc-bubble-label">4PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot selected" style="width:36px;height:36px;background:#58a6ff">28</div>
+          <span class="mc-bubble-label" style="color:#58a6ff;font-weight:bold">5PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:24px;height:24px;background:#238636">12</div>
+          <span class="mc-bubble-label">6PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:20px;height:20px;background:#333">8</div>
+          <span class="mc-bubble-label">7PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:28px;height:28px;background:#238636">20</div>
+          <span class="mc-bubble-label">8PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:20px;height:20px;background:#333">10</div>
+          <span class="mc-bubble-label">9PM</span>
+        </div>
+        <div class="mc-bubble">
+          <div class="mc-dot" style="width:16px;height:16px;background:#333">5</div>
+          <span class="mc-bubble-label">10P</span>
+        </div>
+      </div>
+      <div class="mc-legend">蓝=已选 | 金=火爆 | 绿=有位 | 灰=冷门 | 大小=人数</div>
+
+      <!-- Selected Slot Detail -->
+      <div class="mc-slot-title">周日 5:00PM -- 2辆车</div>
+
+      <!-- Car 1 -->
+      <div class="mc-car-card my-car">
+        <div class="mc-car-top">
+          <span class="mc-car-name">第1车 · 👑 Yuki</span>
+          <span class="mc-car-count">8/10</span>
+        </div>
+        <div class="mc-car-body">
+          <div class="mc-donut-wrap">
+            <div class="mc-donut" style="background: conic-gradient(#58a6ff 0deg 225deg, #3fb950 225deg 360deg);">
+              <div class="mc-donut-inner">8</div>
+            </div>
+            <div class="mc-donut-label">5输出 3霖霖</div>
+          </div>
+          <div class="mc-members">
+            <div class="mc-member me">👑 Yuki (输出)</div>
+            <div class="mc-member normal">Alice (输出)</div>
+            <div class="mc-member normal">Bob (霖霖)</div>
+            <div class="mc-member proxy">Carol* (输出)</div>
+            <div class="mc-more">+ 4 more...</div>
+          </div>
+        </div>
+        <div class="mc-progress">
+          <div class="mc-bar"><div class="mc-bar-fill" style="width:80%;background:#3fb950"></div></div>
+          <div class="mc-bar-text" style="color:#3fb950">80% -- 还差2人</div>
+        </div>
+      </div>
+
+      <!-- Car 2 -->
+      <div class="mc-car-card">
+        <div class="mc-car-top">
+          <span class="mc-car-name">第2车</span>
+          <span class="mc-car-count">3/10</span>
+        </div>
+        <div class="mc-car-body">
+          <div class="mc-donut-wrap">
+            <div class="mc-donut" style="background: conic-gradient(#58a6ff 0deg 240deg, #3fb950 240deg 360deg);">
+              <div class="mc-donut-inner">3</div>
+            </div>
+            <div class="mc-donut-label">2输出 1霖霖</div>
+          </div>
+          <div class="mc-members">
+            <div class="mc-member normal">Dan (输出)</div>
+            <div class="mc-member normal">Eve (输出)</div>
+            <div class="mc-member proxy">Frank* (霖霖)</div>
+          </div>
+        </div>
+        <div class="mc-progress">
+          <div class="mc-bar"><div class="mc-bar-fill" style="width:30%;background:#58a6ff"></div></div>
+          <div class="mc-bar-text" style="color:#58a6ff">30% -- 还差7人</div>
+        </div>
+      </div>
+
+      <!-- Sticky Join -->
+      <div class="mc-join-bar">
+        <div class="mc-join-main">加入此时段</div>
+        <div class="mc-join-sub">选择: 🔵输出 | 🟢霖霖</div>
+      </div>
+
+      <!-- Bottom Tabs -->
+      <div class="mc-tabs">
+        <div class="mc-tab active">报名</div>
+        <div class="mc-tab inactive">我的状态</div>
+        <div class="mc-tab inactive">设置</div>
+      </div>
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">1. Bubble Timeline</h4>
+        <p>Each time slot is a bubble. Size = people count, Color = popularity tier. Tap to select. Far more scannable than 9 identical-looking slot blocks.</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">2. Role Ratio Donut</h4>
+        <p>Each car shows a donut chart of DPS (blue) vs Healer (green) ratio. Instantly see team composition balance without counting tags. Critical for players who care about optimal team makeup.</p>
+      </div>
+      <div class="anno-card" style="border-color:#3fb950;background:rgba(35,134,54,0.08)">
+        <h4 style="color:#3fb950">3. Thicker Progress Bars</h4>
+        <p>8px bars with percentage text. Current 3px bars are nearly invisible. "80% -- needs 2 more" is much more actionable than just a thin line.</p>
+      </div>
+      <div class="anno-card" style="border-color:#a78bfa;background:rgba(139,92,246,0.08)">
+        <h4 style="color:#a78bfa">4. Bottom Navigation</h4>
+        <p>Separate "Signup", "My Status", "Settings" into tabs. Currently everything is crammed into one scrollable page. Settings = nickname, recurring, proxy management, recovery code.</p>
+      </div>
+      <div class="anno-card" style="border-color:#06b6d4;background:rgba(6,182,212,0.08)">
+        <h4 style="color:#06b6d4">5. Sticky Join Bar</h4>
+        <p>Fixed bottom CTA always accessible. Users can browse cars, scroll through members, and still one-tap join without scrolling back up.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== COMMON FIXES ==================== -->
+<div class="section" id="common">
+  <div class="common-section">
+    <div class="common-title">Common Improvements (All Proposals)</div>
+    <div class="common-subtitle">These changes should be applied regardless of which design direction is chosen</div>
+
+    <div class="common-card">
+      <h3>1. Move Proxy Signup Out of Header</h3>
+      <p>Proxy signup ("help others register") should be at the bottom of the signup flow, not in the header. It's a secondary action that clutters the primary view.</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">Header: Title + Week + Nickname + <strong>Proxy Input</strong> + Recovery Code<br>= 5 features in one area</div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">AFTER</div>
+          <div class="ba-box after-box">Header: Title + Week + Nickname only<br>Proxy: Bottom of signup flow<br>Recovery: Settings tab</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="common-card">
+      <h3>2. Thicken Progress Bars (3px -> 8-10px)</h3>
+      <p>Current car progress bars are barely visible. Increase to 8-10px with percentage text alongside.</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">
+            <div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin:8px 0">
+              <div style="width:60%;height:100%;background:#238636;border-radius:2px"></div>
+            </div>
+            (Can you even see that?)
+          </div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">AFTER</div>
+          <div class="ba-box after-box">
+            <div style="height:10px;background:#21262d;border-radius:5px;overflow:hidden;margin:4px 0">
+              <div style="width:60%;height:100%;background:#238636;border-radius:5px"></div>
+            </div>
+            <span style="font-size:12px;color:#3fb950">60% -- 还差4人</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="common-card">
+      <h3>3. Simplify Default Name Confirmation</h3>
+      <p>Replace "type your name to confirm" with a simple two-button dialog. The current flow has too much friction.</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">Modal: "Please type <strong>水仙十字社小可爱abc</strong> below to confirm"<br>[text input]<br>[Cancel] [Confirm (disabled until match)]</div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">AFTER</div>
+          <div class="ba-box after-box">Modal: "Your name is <strong>水仙十字社小可爱abc</strong>"<br>"Want to change it before signing up?"<br>[Change Name] [<strong>Continue</strong>]</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="common-card">
+      <h3>4. Discord: Add Back Button</h3>
+      <p>Current Discord flow is 4 irreversible steps. Add a "Back" button at each step so users can correct mistakes.</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">Mode -> Time -> Role -> Recurring<br>(Can't go back! Wrong time? Start over.)</div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">AFTER</div>
+          <div class="ba-box after-box">Mode -> Time -> Role -> Recurring<br>[&larr; Back] available at each step<br>Or: combine into fewer steps</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="common-card">
+      <h3>5. Smart "Create Car" CTA for Full Slots</h3>
+      <p>When all cars in a slot are full, change the "Join" button to "Create New Car" automatically.</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">User clicks "Join" on full slot<br>-> System auto-creates new car<br>(User surprised: "I wanted to join existing car")</div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">AFTER</div>
+          <div class="ba-box after-box">Full slot shows:<br><strong style="color:#f0b429">[Create New Car]</strong> instead of "Join"<br>Clear expectation before clicking</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <h3 style="color:#f0b429;margin:32px 0 16px;font-size:20px;text-align:center">Proposal Comparison</h3>
+    <table class="compare-table">
+      <tr>
+        <th>Dimension</th>
+        <th>A: Dashboard</th>
+        <th>B: Card Flow</th>
+        <th>C: Timeline</th>
+      </tr>
+      <tr>
+        <td>Target User</td>
+        <td>Experienced players</td>
+        <td>New users</td>
+        <td>Min-maxers</td>
+      </tr>
+      <tr>
+        <td>Info Density</td>
+        <td><span class="star">&#9733;&#9733;&#9733;</span></td>
+        <td><span class="star">&#9733;&#9733;</span></td>
+        <td><span class="star">&#9733;&#9733;&#9733;</span></td>
+      </tr>
+      <tr>
+        <td>Ease of Learning</td>
+        <td><span class="star">&#9733;&#9733;</span></td>
+        <td><span class="star">&#9733;&#9733;&#9733;</span></td>
+        <td><span class="star">&#9733;&#9733;</span></td>
+      </tr>
+      <tr>
+        <td>Decision Speed</td>
+        <td><span class="star">&#9733;&#9733;&#9733;</span> (recommend)</td>
+        <td><span class="star">&#9733;&#9733;</span> (guided)</td>
+        <td><span class="star">&#9733;&#9733;</span> (browse)</td>
+      </tr>
+      <tr>
+        <td>Team Composition Viz</td>
+        <td><span class="star">&#9733;</span></td>
+        <td><span class="star">&#9733;&#9733;</span> (hints)</td>
+        <td><span class="star">&#9733;&#9733;&#9733;</span> (donut)</td>
+      </tr>
+      <tr>
+        <td>Implementation Effort</td>
+        <td>Medium</td>
+        <td>Medium-High</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td>Best For</td>
+        <td>Quick weekly check-in</td>
+        <td>Growing community</td>
+        <td>Hardcore guilds</td>
+      </tr>
+    </table>
+
+    <p style="text-align:center;color:#6e7681;margin-top:24px;font-size:13px">
+      Recommendation: Start with <strong style="color:#f0b429">B (Card Flow)</strong> for onboarding improvements,<br>
+      then evolve toward <strong style="color:#f0b429">A (Dashboard)</strong> as the community matures.
+    </p>
+  </div>
+</div>
+
+<script>
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>
