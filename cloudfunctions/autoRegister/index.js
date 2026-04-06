@@ -140,11 +140,9 @@ function getCurrentSunday(pdtNow) {
   var day = pdtNow.getDay();
   var result = new Date(pdtNow);
   if (day === 0) {
-    if (pdtNow.getHours() >= 23) {
-      result.setDate(result.getDate() + 7);
-    }
+    if (pdtNow.getHours() < 14) result.setDate(result.getDate() - 7);
   } else {
-    result.setDate(result.getDate() + (7 - day));
+    result.setDate(result.getDate() - day);
   }
   return formatDate(result);
 }

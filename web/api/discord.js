@@ -206,8 +206,8 @@ function getCurrentSunday() {
   var pdtNow = new Date(utcMs + PDT_OFFSET * 3600000);
   var day = pdtNow.getDay();
   var result = new Date(pdtNow);
-  if (day === 0) { if (pdtNow.getHours() >= 23) result.setDate(result.getDate() + 7); }
-  else { result.setDate(result.getDate() + (7 - day)); }
+  if (day === 0) { if (pdtNow.getHours() < 14) result.setDate(result.getDate() - 7); }
+  else { result.setDate(result.getDate() - day); }
   return result.getFullYear() + '-' + pad(result.getMonth() + 1) + '-' + pad(result.getDate());
 }
 

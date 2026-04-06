@@ -21,8 +21,10 @@ function getPDTNow() {
 
 /**
  * 获取当前应报名的 PDT 周日日期
- * - PDT 周日且未过 23:00 → 返回当天
- * - 否则 → 返回下一个 PDT 周日
+ * 每周从周日 14:00 PDT 开始，到下周六晚结束
+ * - 周日 14:00+ → 本周日（新一周）
+ * - 周日 14:00 前 → 上周日
+ * - 周一~周六 → 回退到上个周日
  */
 function getCurrentSunday() {
   const pdtNow = getPDTNow();
@@ -30,11 +32,13 @@ function getCurrentSunday() {
   const result = new Date(pdtNow);
 
   if (day === 0) {
-    if (pdtNow.getHours() >= 23) {
-      result.setDate(result.getDate() + 7);
+    // 周日：14:00 前属于上一周
+    if (pdtNow.getHours() < 14) {
+      result.setDate(result.getDate() - 7);
     }
   } else {
-    result.setDate(result.getDate() + (7 - day));
+    // 周一~周六：回退到本周日
+    result.setDate(result.getDate() - day);
   }
 
   return formatDate(result);
