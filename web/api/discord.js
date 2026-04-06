@@ -5,7 +5,8 @@ const { callCloudFunction } = require('../lib/wxcloud');
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 const PDT_OFFSET = -7;
-var HOURS = [14, 15, 16, 17, 18, 19, 20, 21, 22];
+var HOURS = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+var SUNDAY_DISABLED_HOURS = [12, 13];
 var WEEKDAY_NAMES = ['周日','周一','周二','周三','周四','周五','周六'];
 
 function getDaysOfWeek(weekDate) {
@@ -304,14 +305,16 @@ async function showTimePicker(userId, displayName, mode, dayIndex) {
     return discordTime(dayDate, h) + ' ' + bar + ' (' + cars + '车)';
   });
 
+  var isSunday = dayIndex === 0;
   var options = [];
   if (mode === 'quick') {
     options.push({ label: '🎲 随缘', value: 'any', description: '加入最快满的车' });
   }
   HOURS.forEach(function(h, i) {
+    if (isSunday && SUNDAY_DISABLED_HOURS.indexOf(h) >= 0) return;
     var c = counts[h] || 0;
     var fire = c >= 7 ? ' 🔥' : '';
-    options.push({ label: '第' + (i+1) + '场 (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
+    options.push({ label: (h > 12 ? (h-12) : h) + ':00 PM (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
   });
 
   var roleEmoji = lastRole === '霖霖' ? '🟢' : '🔵';
@@ -347,14 +350,16 @@ async function showTimePickerWithRole(userId, displayName, mode, role, dayIndex)
     return discordTime(dayDate, h) + ' ' + bar + ' (' + cars + '车)';
   });
 
+  var isSunday = dayIndex === 0;
   var options = [];
   if (mode === 'quick') {
     options.push({ label: '🎲 随缘', value: 'any', description: '加入最快满的车' });
   }
   HOURS.forEach(function(h, i) {
+    if (isSunday && SUNDAY_DISABLED_HOURS.indexOf(h) >= 0) return;
     var c = counts[h] || 0;
     var fire = c >= 7 ? ' 🔥' : '';
-    options.push({ label: '第' + (i+1) + '场 (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
+    options.push({ label: (h > 12 ? (h-12) : h) + ':00 PM (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
   });
 
   var roleEmoji = role === '霖霖' ? '🟢' : '🔵';

@@ -6,7 +6,8 @@
 const PDT_OFFSET = -7;
 
 // 活动时段（PDT 小时）
-const SLOT_HOURS_PDT = [14, 15, 16, 17, 18, 19, 20, 21, 22];
+const SLOT_HOURS_PDT = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+const SUNDAY_DISABLED_HOURS = [12, 13];
 
 const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
@@ -117,6 +118,7 @@ module.exports = {
   getPDTNow,
   getCurrentSunday,
   getDaysOfWeek,
+  SUNDAY_DISABLED_HOURS,
   pdtToLocal,
   formatDate
 };

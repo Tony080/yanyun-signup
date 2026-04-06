@@ -96,6 +96,11 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
   if (hour != null && dayDate === todayStr && hour <= pdtNow.getHours()) {
     return { success: false, message: '该时段已过，请选择未来的时段' };
   }
+  // 周日 12PM/1PM 不可报名
+  var dayIdx = getDayIndex(weekDate, dayDate);
+  if (hour != null && dayIdx === 0 && (hour === 12 || hour === 13)) {
+    return { success: false, message: '周日 12PM-1PM 不可报名' };
+  }
 
   var targetCar;
   var resultHour;
@@ -111,10 +116,12 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
       // 默认选下一个未过的时段
       var pdtNow = getPDTNow();
       var todayDate = formatDateStr(pdtNow);
-      var defaultHour = 14;
+      var isSun = getDayIndex(weekDate, dayDate) === 0;
+      var defaultHour = isSun ? 14 : 12;
       if (dayDate === todayDate) {
         var ch = pdtNow.getHours();
-        for (var hh = 14; hh <= 22; hh++) { if (hh > ch) { defaultHour = hh; break; } }
+        var startH = isSun ? 14 : 12;
+        for (var hh = startH; hh <= 22; hh++) { if (hh > ch) { defaultHour = hh; break; } }
       }
       resultHour = defaultHour;
     }
@@ -160,6 +167,10 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
   }
   if (dayDate === todayStr && hour <= pdtNow.getHours()) {
     return { success: false, message: '该时段已过，请选择未来的时段' };
+  }
+  var dayIdx2 = getDayIndex(weekDate, dayDate);
+  if (dayIdx2 === 0 && (hour === 12 || hour === 13)) {
+    return { success: false, message: '周日 12PM-1PM 不可报名' };
   }
 
   var existing = await db.collection('slots')
@@ -337,13 +348,15 @@ async function findBestCarAnyHour(weekDate, dayDate) {
     .limit(20)
     .get();
 
-  // 过滤掉今天已过的时段
+  // 过滤掉今天已过的时段 + 周日12-13点
   var pdtNow = getPDTNow();
   var todayDate = formatDateStr(pdtNow);
-  if (dayDate === todayDate) {
-    var currentHour = pdtNow.getHours();
-    cars.data = cars.data.filter(function(c) { return c.hour > currentHour; });
-  }
+  var isSunday = pdtNow.getDay() === 0 && dayDate === todayDate;
+  cars.data = cars.data.filter(function(c) {
+    if (dayDate === todayDate && c.hour <= pdtNow.getHours()) return false;
+    if (isSunday && (c.hour === 12 || c.hour === 13)) return false;
+    return true;
+  });
 
   if (cars.data.length === 0) return null;
   var withLeader = cars.data.filter(function(c) { return c.leader; });

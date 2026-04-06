@@ -1,6 +1,7 @@
 var week = require('../../utils/week');
 var getCurrentSunday = week.getCurrentSunday;
 var SLOT_HOURS_PDT = week.SLOT_HOURS_PDT;
+var SUNDAY_DISABLED_HOURS = week.SUNDAY_DISABLED_HOURS;
 var pdtToLocal = week.pdtToLocal;
 var getDaysOfWeek = week.getDaysOfWeek;
 
@@ -46,8 +47,11 @@ Page({
     extraNameInput: '',
     extraRoleInput: '输出',
 
-    // Time picker
-    timePickerOptions: [],
+    // Day + Hour pickers
+    signupDayIndex: 0,
+    dayPickerOptions: [],
+    dayPickerIndex: 0,
+    hourPickerOptions: [],
     timePickerIndex: 0,
 
     // 默认名字确认弹窗（简化版）
@@ -132,21 +136,56 @@ Page({
     return pdtToLocal(this.data.weekDate, pdtHour).display;
   },
 
-  // Build picker options based on current slotsMap + mode
-  buildTimePickerOptions: function (mode) {
-    var slotsMap = this.data.slotsMap;
-    var timeSlots = this.data.timeSlots;
+  // Build hour picker options for a given day
+  buildHourPickerOptions: function (dayIndex, mode) {
+    var weekDays = this.data.weekDays;
+    var dayDate = weekDays[dayIndex].dayDate;
+    var allSlots = this.data.allSlots;
+
+    // Build slotsMap for this day
+    var daySlotsMap = {};
+    for (var si = 0; si < allSlots.length; si++) {
+      var slot = allSlots[si];
+      if (slot.dayDate !== dayDate) continue;
+      var h = slot.hour;
+      if (!daySlotsMap[h]) daySlotsMap[h] = { totalCount: 0 };
+      daySlotsMap[h].totalCount += slot.count;
+    }
+
+    var pdtNow = week.getPDTNow();
+    var pdtTodayStr = week.formatDate(pdtNow);
+    var pdtCurrentHour = pdtNow.getHours();
+    var isDayToday = dayDate === pdtTodayStr;
+    var isDayPast = dayDate < pdtTodayStr;
+
     var options = [];
 
     if (mode === 'quick') {
       options.push({ label: '🎲 随缘', pdtHour: null });
     }
 
-    for (var i = 0; i < timeSlots.length; i++) {
-      var ts = timeSlots[i];
-      var count = slotsMap[ts.pdtHour] ? slotsMap[ts.pdtHour].totalCount : 0;
-      var label = ts.display + '（' + count + '人）';
-      options.push({ label: label, pdtHour: ts.pdtHour });
+    for (var i = 0; i < SLOT_HOURS_PDT.length; i++) {
+      var pdtHour = SLOT_HOURS_PDT[i];
+
+      // Sunday: skip disabled hours
+      if (dayIndex === 0 && SUNDAY_DISABLED_HOURS.indexOf(pdtHour) >= 0) continue;
+
+      // Today: skip hours <= current PDT hour; past days: skip all
+      if (isDayPast) continue;
+      if (isDayToday && pdtHour <= pdtCurrentHour) continue;
+
+      var local = pdtToLocal(dayDate, pdtHour);
+      var count = daySlotsMap[pdtHour] ? daySlotsMap[pdtHour].totalCount : 0;
+      var label = local.shortDisplay + '（' + count + '人）';
+      options.push({ label: label, pdtHour: pdtHour });
+    }
+
+    // If no hours available (past day), show a placeholder
+    if (options.length === 0 || (options.length === 1 && options[0].pdtHour === null)) {
+      // Keep the 随缘 if present, but also note no hours
+      if (options.length === 0) {
+        options.push({ label: '无可选时段', pdtHour: null });
+      }
     }
 
     return options;
@@ -443,14 +482,43 @@ Page({
   openSignupModal: function (e) {
     var mode = e.currentTarget.dataset.mode; // 'quick' or 'create'
     var hour = e.currentTarget.dataset.hour;  // optional: pre-selected hour
-    var options = this.buildTimePickerOptions(mode);
+    var weekDays = this.data.weekDays;
+    var selectedDay = this.data.selectedDay;
 
-    var pickerIndex = 0;
+    // Build day picker options
+    var pdtNow = week.getPDTNow();
+    var pdtTodayStr = week.formatDate(pdtNow);
+    var dayPickerOptions = [];
+    for (var di = 0; di < weekDays.length; di++) {
+      var wd = weekDays[di];
+      var dayLabel = wd.dayName + ' ' + wd.shortDate;
+      if (wd.dayDate < pdtTodayStr) {
+        dayLabel += '（已过）';
+      }
+      dayPickerOptions.push({ label: dayLabel, dayIndex: di });
+    }
+
+    // Find picker index for current selectedDay
+    var dayPickerIndex = 0;
+    for (var dj = 0; dj < dayPickerOptions.length; dj++) {
+      if (dayPickerOptions[dj].dayIndex === selectedDay) {
+        dayPickerIndex = dj;
+        break;
+      }
+    }
+
+    var signupDayIndex = selectedDay;
+
+    // Build hour options for selected day
+    var hourOptions = this.buildHourPickerOptions(signupDayIndex, mode);
+
+    // Find hour picker index if pre-selected hour given
+    var timePickerIndex = 0;
     if (hour !== undefined && hour !== null) {
       var hourNum = Number(hour);
-      for (var i = 0; i < options.length; i++) {
-        if (options[i].pdtHour === hourNum) {
-          pickerIndex = i;
+      for (var hi = 0; hi < hourOptions.length; hi++) {
+        if (hourOptions[hi].pdtHour === hourNum) {
+          timePickerIndex = hi;
           break;
         }
       }
@@ -459,14 +527,17 @@ Page({
     this.setData({
       showSignupModal: true,
       signupMode: mode,
-      signupHour: options[pickerIndex].pdtHour,
+      signupDayIndex: signupDayIndex,
+      dayPickerOptions: dayPickerOptions,
+      dayPickerIndex: dayPickerIndex,
+      hourPickerOptions: hourOptions,
+      timePickerIndex: timePickerIndex,
+      signupHour: hourOptions[timePickerIndex].pdtHour,
       signupRole: this.data.preferredRole,
       signupRecurring: false,
       signupExtras: [],
       extraNameInput: '',
-      extraRoleInput: '输出',
-      timePickerOptions: options,
-      timePickerIndex: pickerIndex
+      extraRoleInput: '输出'
     });
   },
 
@@ -477,9 +548,24 @@ Page({
   // Prevent tap-through on modal overlay
   preventBubble: function () {},
 
+  onDayPickerChange: function (e) {
+    var idx = Number(e.detail.value);
+    var dayOption = this.data.dayPickerOptions[idx];
+    var newDayIndex = dayOption.dayIndex;
+    var hourOptions = this.buildHourPickerOptions(newDayIndex, this.data.signupMode);
+
+    this.setData({
+      dayPickerIndex: idx,
+      signupDayIndex: newDayIndex,
+      hourPickerOptions: hourOptions,
+      timePickerIndex: 0,
+      signupHour: hourOptions[0].pdtHour
+    });
+  },
+
   onTimePickerChange: function (e) {
     var idx = Number(e.detail.value);
-    var options = this.data.timePickerOptions;
+    var options = this.data.hourPickerOptions;
     this.setData({
       timePickerIndex: idx,
       signupHour: options[idx].pdtHour
@@ -561,7 +647,7 @@ Page({
 
     try {
       var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
-      var selectedDayDate = this.data.weekDays[this.data.selectedDay].dayDate;
+      var selectedDayDate = this.data.weekDays[this.data.signupDayIndex].dayDate;
       var callData = {
         action: action,
         weekDate: weekDate,
@@ -595,7 +681,7 @@ Page({
           this.setData({
             isRecurring: true,
             recurringHour: displayHour,
-            recurringDay: this.data.selectedDay,
+            recurringDay: this.data.signupDayIndex,
             recurringLocalDisplay: pdtToLocal(displayDayDate, displayHour).display
           });
         }

@@ -401,7 +401,12 @@ body {
     <div class="signup-title" id="signupTitle"></div>
 
     <div class="signup-field">
-      <div class="signup-field-label">时间段</div>
+      <div class="signup-field-label">日期</div>
+      <select class="signup-select" id="signupDaySelect" onchange="window._signupDayChange()"></select>
+    </div>
+
+    <div class="signup-field">
+      <div class="signup-field-label">时段</div>
       <select class="signup-select" id="signupHourSelect"></select>
     </div>
 
@@ -469,7 +474,9 @@ body {
 
 // ===== 配置 =====
 var PDT_OFFSET = -7;
-var SLOT_HOURS = [14,15,16,17,18,19,20,21,22];
+var SLOT_HOURS = [12,13,14,15,16,17,18,19,20,21,22];
+// 周日 12PM 和 1PM 不可选
+var SUNDAY_DISABLED_HOURS = [12, 13];
 var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
 
 // ===== 状态 =====
@@ -497,6 +504,7 @@ var state = {
   preferredRole: localStorage.getItem('yanyun_role') || '输出', // 记忆职业
   // Signup modal state
   signupMode: null, // 'quick' | 'create' | null
+  signupDay: null, // dayIndex in modal
   signupHour: null,
   signupRole: '输出',
   signupRecurring: false,
@@ -691,6 +699,7 @@ function rebuildSlotsMapForDay() {
 // ===== Signup Modal =====
 function openSignupModal(mode, preselectedHour) {
   state.signupMode = mode;
+  state.signupDay = state.selectedDay;
   state.signupHour = preselectedHour || null;
   state.signupRole = state.preferredRole;
   state.signupRecurring = false;
@@ -712,19 +721,55 @@ function renderSignupModal() {
   var titleEl = document.getElementById('signupTitle');
   titleEl.textContent = isQuick ? '⚡ 快速加入' : '🚗 创建车队';
 
-  // Hour select
+  var pdtNow = getPDTNow();
+  var todayStr = fmtDate(pdtNow);
+  var currentHour = pdtNow.getHours();
+
+  // Day select
+  var daySelectEl = document.getElementById('signupDaySelect');
+  var dayHtml = '';
+  state.weekDays.forEach(function(wd) {
+    var isPast = wd.dayDate < todayStr;
+    var sel = wd.dayIndex === state.signupDay ? ' selected' : '';
+    var dis = isPast ? ' disabled' : '';
+    // 计算该天总人数
+    var dayCount = 0;
+    state.allSlots.forEach(function(s) { if (s.dayDate === wd.dayDate) dayCount += s.count; });
+    var label = wd.dayName + ' ' + wd.shortDate + (dayCount > 0 ? ' (' + dayCount + '人)' : '');
+    if (isPast) label += ' (已过)';
+    dayHtml += '<option value="' + wd.dayIndex + '"' + sel + dis + '>' + esc(label) + '</option>';
+  });
+  daySelectEl.innerHTML = dayHtml;
+  daySelectEl.value = String(state.signupDay);
+
+  // Hour select — based on selected day
+  var selectedDayDate = state.weekDays[state.signupDay].dayDate;
+  var isSunday = state.signupDay === 0;
+  var isToday = selectedDayDate === todayStr;
+  // 该天的 slots 数据
+  var daySlotsMap = {};
+  state.allSlots.forEach(function(s) {
+    if (s.dayDate !== selectedDayDate) return;
+    if (!daySlotsMap[s.hour]) daySlotsMap[s.hour] = 0;
+    daySlotsMap[s.hour] += s.count;
+  });
+
   var selectEl = document.getElementById('signupHourSelect');
   var optionsHtml = '';
   if (isQuick) {
-    optionsHtml += '<option value="random">🎲 随缘</option>';
+    optionsHtml += '<option value="random">🎲 随缘（自动选最优）</option>';
   }
-  state.timeSlots.forEach(function(slot) {
-    var data = state.slotsMap[slot.pdtHour];
-    var count = data ? data.totalCount : 0;
+  SLOT_HOURS.forEach(function(h) {
+    var isPastHour = isToday && h <= currentHour;
+    var isSundayDisabled = isSunday && SUNDAY_DISABLED_HOURS.indexOf(h) >= 0;
+    var dis = (isPastHour || isSundayDisabled) ? ' disabled' : '';
+    var count = daySlotsMap[h] || 0;
     var hot = count >= 7 ? ' 🔥' : '';
-    var selected = state.signupHour === slot.pdtHour ? ' selected' : '';
-    optionsHtml += '<option value="' + slot.pdtHour + '"' + selected + '>'
-      + esc(slot.display) + ' (' + count + '人)' + hot + '</option>';
+    var label = fmt12h(h) + ' (' + count + '人)' + hot;
+    if (isPastHour) label += ' (已过)';
+    if (isSundayDisabled) label += ' (周日不可选)';
+    var sel = state.signupHour === h ? ' selected' : '';
+    optionsHtml += '<option value="' + h + '"' + sel + dis + '>' + esc(label) + '</option>';
   });
   selectEl.innerHTML = optionsHtml;
   if (state.signupHour) {
@@ -765,6 +810,13 @@ function renderProxyTags() {
   });
   container.innerHTML = html;
 }
+
+window._signupDayChange = function() {
+  var dayVal = document.getElementById('signupDaySelect').value;
+  state.signupDay = parseInt(dayVal, 10);
+  state.signupHour = null; // reset hour when day changes
+  renderSignupModal();
+};
 
 window._signupSetRole = function(role) {
   state.signupRole = role;
@@ -809,7 +861,7 @@ window._signupSubmit = async function() {
 
   try {
     var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
-    var selectedDayDate = state.weekDays[state.selectedDay].dayDate;
+    var selectedDayDate = state.weekDays[state.signupDay].dayDate;
     var params = {
       action: action,
       weekDate: state.weekDate,
@@ -829,7 +881,7 @@ window._signupSubmit = async function() {
       if (recurring && displayHour != null) {
         state.isRecurring = true;
         state.recurringHour = displayHour;
-        state.recurringDay = state.selectedDay;
+        state.recurringDay = state.signupDay;
         state.recurringLocalDisplay = pdtToLocal(displayDayDate, displayHour).display;
       }
       var msg = mode === 'quick' ? '已加入' : '已创建车队';

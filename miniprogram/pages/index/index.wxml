@@ -214,13 +214,25 @@
         <text wx:if="{{signupMode === 'create'}}">🚗 创建车队</text>
       </view>
 
-      <!-- Time picker -->
+      <!-- Day picker -->
+      <view class="modal-row">
+        <text class="modal-label">日期</text>
+        <picker mode="selector" range="{{dayPickerOptions}}" range-key="label"
+                value="{{dayPickerIndex}}" bindchange="onDayPickerChange">
+          <view class="modal-picker">
+            {{dayPickerOptions[dayPickerIndex].label}}
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- Hour picker -->
       <view class="modal-row">
         <text class="modal-label">时段</text>
-        <picker mode="selector" range="{{timePickerOptions}}" range-key="label"
+        <picker mode="selector" range="{{hourPickerOptions}}" range-key="label"
                 value="{{timePickerIndex}}" bindchange="onTimePickerChange">
           <view class="modal-picker">
-            {{timePickerOptions[timePickerIndex].label}}
+            {{hourPickerOptions[timePickerIndex].label}}
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
