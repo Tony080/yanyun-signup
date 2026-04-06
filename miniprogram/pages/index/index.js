@@ -37,7 +37,13 @@ Page({
 
     // Time picker
     timePickerOptions: [],
-    timePickerIndex: 0
+    timePickerIndex: 0,
+
+    // 默认名字确认弹窗
+    showNameConfirm: false,
+    nameConfirmTarget: '',
+    nameConfirmInput: '',
+    nameConfirmOk: false
   },
 
   onLoad: function () {
@@ -207,6 +213,31 @@ Page({
     this.setData({ proxyList: list });
   },
 
+  // ===== 默认名字确认 =====
+
+  onNameConfirmInput: function (e) {
+    var val = e.detail.value.trim();
+    this.setData({
+      nameConfirmInput: val,
+      nameConfirmOk: val === this.data.nameConfirmTarget
+    });
+  },
+
+  confirmNameOk: function () {
+    if (!this.data.nameConfirmOk) return;
+    this.setData({ showNameConfirm: false });
+    if (this._nameConfirmResolve) this._nameConfirmResolve(true);
+  },
+
+  confirmNameCancel: function () {
+    this.setData({ showNameConfirm: false });
+    if (this._nameConfirmResolve) this._nameConfirmResolve(false);
+  },
+
+  copyNameConfirm: function () {
+    wx.setClipboardData({ data: this.data.nameConfirmTarget });
+  },
+
   saveNickname: async function () {
     var nicknameInput = this.data.nicknameInput;
     var nickname = this.data.nickname;
@@ -322,13 +353,29 @@ Page({
   submitSignup: async function () {
     if (this.data.actionLoading) return;
 
+    var nickname = this.data.nickname;
+
+    // 默认名字二次确认
+    if (nickname.startsWith('水仙十字社小可爱') || nickname.startsWith('访客')) {
+      var self = this;
+      var confirmed = await new Promise(function (resolve) {
+        self.setData({
+          showNameConfirm: true,
+          nameConfirmTarget: nickname,
+          nameConfirmInput: '',
+          nameConfirmOk: false
+        });
+        self._nameConfirmResolve = resolve;
+      });
+      if (!confirmed) return;
+    }
+
     var mode = this.data.signupMode;
     var pdtHour = this.data.signupHour;
     var role = this.data.signupRole;
     var recurring = this.data.signupRecurring;
     var extras = this.data.signupExtras;
     var weekDate = this.data.weekDate;
-    var nickname = this.data.nickname;
 
     if (mode === 'create' && pdtHour === null) {
       wx.showToast({ title: '创建车队需选择时段', icon: 'none' });

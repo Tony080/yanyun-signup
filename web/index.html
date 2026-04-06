@@ -273,6 +273,15 @@ body {
 }
 .modal-cancel { background: #21262d; color: #c9d1d9; }
 .modal-confirm { background: #238636; color: #fff; }
+.modal-confirm.disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+.name-highlight { color: #f0b429; font-weight: bold; font-size: 15px; }
+.copy-icon { cursor: pointer; font-size: 14px; margin-left: 4px; }
+.name-confirm-input {
+  width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 8px 10px; color: #e6edf3; font-size: 14px; outline: none;
+  margin-top: 8px;
+}
+.name-confirm-input:focus { border-color: rgba(240,180,41,0.4); }
 </style>
 </head>
 <body>
@@ -310,6 +319,23 @@ body {
   </div>
 </div>
 
+<div class="modal-mask" id="nameConfirmModal">
+  <div class="modal-box" style="text-align:left">
+    <div class="modal-title">确认角色名</div>
+    <div class="modal-content" style="white-space:normal">
+      你确定使用 <span class="name-highlight" id="nameConfirmName"></span>
+      <span class="copy-icon" id="nameConfirmCopy" title="复制">📋</span>
+      作为你的角色名报名吗？<br><br>
+      请提供角色名以方便他人组队。<br>
+      请在下方输入你的名字确认：
+    </div>
+    <input class="name-confirm-input" id="nameConfirmInput" placeholder="输入上面的名字确认">
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="modal-cancel" id="nameConfirmCancel">取消，我去改名</button>
+      <button class="modal-confirm disabled" id="nameConfirmOk" disabled>确认使用</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <div class="modal-mask" id="modal">
   <div class="modal-box">
@@ -570,6 +596,12 @@ window._signupClose = closeSignupModal;
 window._signupSubmit = async function() {
   if (state.actionLoading) return;
 
+  // 默认名字二次确认
+  if (isDefaultName(state.nickname)) {
+    var confirmed = await showNameConfirm(state.nickname);
+    if (!confirmed) return;
+  }
+
   var selectEl = document.getElementById('signupHourSelect');
   var hourVal = selectEl.value;
   var pdtHour = hourVal === 'random' ? null : parseInt(hourVal, 10);
@@ -761,6 +793,44 @@ function openGoogleCalendar() {
 }
 
 // ===== UI 工具 =====
+function isDefaultName(name) {
+  return name.startsWith('水仙十字社小可爱') || name.startsWith('访客');
+}
+
+function showNameConfirm(name) {
+  return new Promise(function(resolve) {
+    var mask = document.getElementById('nameConfirmModal');
+    var nameSpan = document.getElementById('nameConfirmName');
+    var input = document.getElementById('nameConfirmInput');
+    var okBtn = document.getElementById('nameConfirmOk');
+    var cancelBtn = document.getElementById('nameConfirmCancel');
+    var copyBtn = document.getElementById('nameConfirmCopy');
+
+    nameSpan.textContent = name;
+    input.value = '';
+    okBtn.disabled = true;
+    okBtn.classList.add('disabled');
+    mask.classList.add('show');
+
+    input.oninput = function() {
+      var match = input.value.trim() === name;
+      okBtn.disabled = !match;
+      okBtn.classList.toggle('disabled', !match);
+    };
+
+    copyBtn.onclick = function() {
+      navigator.clipboard.writeText(name).then(function() {
+        showToast('已复制');
+      });
+    };
+
+    okBtn.onclick = function() {
+      if (!okBtn.disabled) { mask.classList.remove('show'); resolve(true); }
+    };
+    cancelBtn.onclick = function() { mask.classList.remove('show'); resolve(false); };
+  });
+}
+
 function showToast(msg) {
   var el = document.getElementById('toast');
   el.textContent = msg; el.style.display = 'block';

@@ -157,6 +157,28 @@
     </view>
   </view>
 
+  <!-- 默认名字确认弹窗 -->
+  <view class="modal-overlay" wx:if="{{showNameConfirm}}" catchtap="confirmNameCancel">
+    <view class="modal-card name-confirm-card" catchtap="preventBubble">
+      <view class="modal-title">确认角色名</view>
+      <view class="name-confirm-body">
+        <text>你确定使用 </text>
+        <text class="name-highlight">{{nameConfirmTarget}}</text>
+        <text class="copy-icon" catchtap="copyNameConfirm"> 📋</text>
+        <text> 作为你的角色名报名吗？</text>
+      </view>
+      <view class="name-confirm-hint">请提供角色名以方便他人组队。</view>
+      <view class="name-confirm-hint">请在下方输入你的名字确认：</view>
+      <input class="name-confirm-input" value="{{nameConfirmInput}}"
+             bindinput="onNameConfirmInput" placeholder="输入上面的名字确认" />
+      <view class="modal-actions">
+        <view class="modal-cancel-btn" bindtap="confirmNameCancel">取消，我去改名</view>
+        <view class="modal-confirm-btn {{nameConfirmOk ? '' : 'modal-btn-disabled'}}"
+              bindtap="confirmNameOk">确认使用</view>
+      </view>
+    </view>
+  </view>
+
   <!-- 底部说明 -->
   <view class="footer">
     <text class="footer-text">每周自动刷新 | 每人每周限报一个时段 | 10人满开新车</text>
