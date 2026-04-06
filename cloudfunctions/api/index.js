@@ -95,7 +95,19 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     resultHour = hour;
   } else {
     targetCar = await findBestCarAnyHour(weekDate, dayDate);
-    resultHour = targetCar ? targetCar.hour : 14;
+    if (targetCar) {
+      resultHour = targetCar.hour;
+    } else {
+      // 默认选下一个未过的时段
+      var pdtNow = getPDTNow();
+      var todayDate = formatDateStr(pdtNow);
+      var defaultHour = 14;
+      if (dayDate === todayDate) {
+        var ch = pdtNow.getHours();
+        for (var hh = 14; hh <= 22; hh++) { if (hh > ch) { defaultHour = hh; break; } }
+      }
+      resultHour = defaultHour;
+    }
   }
 
   var allMembers = [{ openid: openid, nickname: nickname, role: role, registeredBy: null }];
@@ -305,6 +317,14 @@ async function findBestCarAnyHour(weekDate, dayDate) {
     .limit(20)
     .get();
 
+  // 过滤掉今天已过的时段
+  var pdtNow = getPDTNow();
+  var todayDate = formatDateStr(pdtNow);
+  if (dayDate === todayDate) {
+    var currentHour = pdtNow.getHours();
+    cars.data = cars.data.filter(function(c) { return c.hour > currentHour; });
+  }
+
   if (cars.data.length === 0) return null;
   var withLeader = cars.data.filter(function(c) { return c.leader; });
   if (withLeader.length > 0) return withLeader[0];
@@ -444,6 +464,16 @@ function getDayDate(weekDate, dayIndex) {
   var d = new Date(+p[0], +p[1] - 1, +p[2]);
   d.setDate(d.getDate() + (dayIndex || 0));
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+var PDT_OFFSET = -7;
+function getPDTNow() {
+  var now = new Date();
+  var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utcMs + PDT_OFFSET * 3600000);
+}
+function formatDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
 async function onCarFull(weekDate, hour, carNumber, members) {

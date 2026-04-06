@@ -110,14 +110,14 @@
   <view class="time-slots" wx:if="{{!loading}}">
     <block wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
       <!-- Compact slot row -->
-      <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration.hour === slot.pdtHour ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}}"
+      <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}}"
             bindtap="toggleSlot" data-hour="{{slot.pdtHour}}">
         <view class="slot-row-left">
           <text class="slot-row-chevron">▸</text>
           <text class="slot-row-time">{{slot.display}}</text>
           <text class="slot-row-count" wx:if="{{slotsMap[slot.pdtHour]}}">{{slotsMap[slot.pdtHour].totalCount}}人</text>
           <text class="slot-row-hot-tag" wx:if="{{slotMeta[slot.pdtHour].isHot}}">HOT</text>
-          <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour}}">当前</text>
+          <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay}}">当前</text>
         </view>
         <view class="slot-row-right" catchtap="preventBubble">
           <!-- Join / Create / Move buttons -->

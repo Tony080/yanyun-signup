@@ -872,12 +872,12 @@ async function handleLeave() {
 async function handleMove(pdtHour) {
   if (state.actionLoading) return;
   var from = state.myRegistration.localDisplay;
-  var to = pdtToLocal(state.weekDate, pdtHour).display;
+  var moveDayDate = state.weekDays[state.selectedDay].dayDate;
+  var to = pdtToLocal(moveDayDate, pdtHour).display;
   var extra = state.isRecurring ? '\n每周自动报名也会跟着改' : '';
   if (!await showModal('确认挪动', '从 ' + from + ' 挪到 ' + to + '？' + extra, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var moveDayDate = state.weekDays[state.selectedDay].dayDate;
     var res = await callFunction('api', { action: 'move', weekDate: state.weekDate, targetHour: pdtHour, targetDayDate: moveDayDate, nickname: state.nickname });
     if (res.success) {
       if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringDay = state.selectedDay; state.recurringLocalDisplay = to; }
@@ -1182,7 +1182,7 @@ function render() {
     var data = s.slotsMap[slot.pdtHour];
     var count = data ? data.totalCount : 0;
     var isExpanded = !!s.expandedSlots[slot.pdtHour];
-    var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour;
+    var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour && s.myRegistration.dayIndex === s.selectedDay;
     var allFull = data && data.cars.length > 0 && data.cars.every(function(c) { return c.full; });
     var isHot = count >= 20;
 
