@@ -115,6 +115,7 @@
 }
 .day-tab.active { background: rgba(240,180,41,0.1); border-color: rgba(240,180,41,0.4); }
 .day-tab.has-reg { background: rgba(35,134,54,0.08); border-color: rgba(35,134,54,0.3); }
+.day-tab.past-day { opacity: 0.4; }
 .day-tab-name { display: block; font-size: 26rpx; font-weight: 600; color: #c9d1d9; }
 .day-tab.active .day-tab-name { color: #f0b429; }
 .day-tab-date { display: block; font-size: 20rpx; color: #6e7681; margin-top: 2rpx; }

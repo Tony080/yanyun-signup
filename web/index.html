@@ -89,6 +89,7 @@ body {
 .day-tab:hover { border-color: #30363d; }
 .day-tab.active { background: rgba(240,180,41,0.1); border-color: rgba(240,180,41,0.3); }
 .day-tab.has-reg { background: rgba(35,134,54,0.1); border-color: rgba(35,134,54,0.3); }
+.day-tab.past-day { opacity: 0.4; }
 .day-tab-name { display: block; font-size: 12px; font-weight: 600; color: #e6edf3; }
 .day-tab.active .day-tab-name { color: #f0b429; }
 .day-tab-date { display: block; font-size: 9px; color: #6e7681; }
@@ -529,6 +530,9 @@ async function init() {
   }
 
   state.weekDate = getCurrentSunday();
+  // 默认选中今天
+  var pdtNow = getPDTNow();
+  state.selectedDay = pdtNow.getDay(); // 0=周日, 1=周一, ...
   buildTimeSlots();
   if (state.recurringHour != null && state.recurringDay != null) {
     var recDayDate = state.weekDays[state.recurringDay].dayDate;
@@ -1063,6 +1067,11 @@ function render() {
   var s = state;
   if (s.loading) { document.getElementById('app').innerHTML = '<div class="loading">加载中...</div>'; return; }
 
+  // PDT 时间用于判断已过日期/时段
+  var pdtNow = getPDTNow();
+  var pdtTodayStr = fmtDate(pdtNow);
+  var pdtCurrentHour = pdtNow.getHours();
+
   var html = '';
 
   // ===== 头部（精简：只保留标题+昵称）=====
@@ -1133,18 +1142,18 @@ function render() {
 
   // ===== 日期 Tab 栏 =====
   var myRegDay = s.myRegistration ? s.myRegistration.dayIndex : -1;
+  var todayDayIndex = getPDTNow().getDay();
   html += '<div class="day-tabs">';
   s.weekDays.forEach(function(wd) {
     var isActive = wd.dayIndex === s.selectedDay;
     var isMyReg = wd.dayIndex === myRegDay;
-    var cls = 'day-tab' + (isActive ? ' active' : '') + (isMyReg && !isActive ? ' has-reg' : '');
-    var dotCls = wd.totalCount === 0 ? 'dot-empty' : wd.totalCount < 10 ? 'dot-low' : wd.totalCount < 20 ? 'dot-mid' : 'dot-hot';
+    var isDayPast = wd.dayDate < pdtTodayStr;
+    var cls = 'day-tab' + (isActive ? ' active' : '') + (isMyReg && !isActive ? ' has-reg' : '') + (isDayPast ? ' past-day' : '');
     var countColor = wd.totalCount === 0 ? '#484f58' : wd.totalCount >= 20 ? '#f0b429' : '#3fb950';
     html += '<div class="' + cls + '" onclick="window._selectDay(' + wd.dayIndex + ')">';
-    html += '<span class="day-tab-name">' + esc(wd.dayName.replace('周','')) + '</span>';
+    html += '<span class="day-tab-name">' + esc(wd.dayShort) + '</span>';
     html += '<span class="day-tab-date">' + esc(wd.shortDate) + '</span>';
     html += '<span class="day-tab-count" style="color:' + countColor + '">' + (wd.totalCount > 0 ? wd.totalCount + '人' : '-') + '</span>';
-    html += '<div class="day-tab-dot ' + dotCls + '"></div>';
     html += '</div>';
   });
   html += '</div>';
@@ -1180,10 +1189,6 @@ function render() {
   }
 
   // ===== 紧凑时段列表 =====
-  // 计算当前选中天是否是今天（PDT），以及当前 PDT 小时
-  var pdtNow = getPDTNow();
-  var pdtTodayStr = fmtDate(pdtNow);
-  var pdtCurrentHour = pdtNow.getHours();
   var selectedDayDate = s.weekDays[s.selectedDay].dayDate;
   var isSelectedDayPast = selectedDayDate < pdtTodayStr;
   var isSelectedDayToday = selectedDayDate === pdtTodayStr;

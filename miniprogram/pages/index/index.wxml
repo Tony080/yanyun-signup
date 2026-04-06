@@ -64,7 +64,7 @@
 
   <!-- 日期选择 Tab Bar -->
   <view class="day-tabs" wx:if="{{!loading}}">
-    <view class="day-tab {{item.dayIndex === selectedDay ? 'active' : ''}} {{myRegistration && myRegistration.dayIndex === item.dayIndex && item.dayIndex !== selectedDay ? 'has-reg' : ''}}"
+    <view class="day-tab {{item.dayIndex === selectedDay ? 'active' : ''}} {{myRegistration && myRegistration.dayIndex === item.dayIndex && item.dayIndex !== selectedDay ? 'has-reg' : ''}} {{item.dayDate < pdtTodayStr ? 'past-day' : ''}}"
           wx:for="{{weekDays}}" wx:key="dayIndex"
           bindtap="selectDay" data-day="{{item.dayIndex}}">
       <text class="day-tab-name">{{item.dayShort}}</text>

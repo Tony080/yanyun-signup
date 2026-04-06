@@ -111,7 +111,7 @@ Page({
         weekLabel: weekLabel,
         pdtLabel: pdtLabel,
         weekDays: weekDays,
-        selectedDay: 0,
+        selectedDay: week.getPDTNow().getDay(),
         timeSlots: timeSlots,
         isRecurring: recurringHour != null,
         recurringHour: recurringHour,
@@ -324,7 +324,8 @@ Page({
       timeSlots: timeSlots,
       heatmapData: heatmapData,
       recommendation: recommendation,
-      slotMeta: slotMeta
+      slotMeta: slotMeta,
+      pdtTodayStr: pdtTodayStr
     });
   },
 

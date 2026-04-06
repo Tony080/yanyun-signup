@@ -87,10 +87,13 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     return { success: false, message: '你本周已报名，请使用挪动切换时段' };
   }
 
-  // 拒绝加入已过的时段
+  // 拒绝加入已过的日期或时段
   var pdtNow = getPDTNow();
   var todayStr = formatDateStr(pdtNow);
-  if (hour != null && (dayDate < todayStr || (dayDate === todayStr && hour <= pdtNow.getHours()))) {
+  if (dayDate < todayStr) {
+    return { success: false, message: '该日期已过，请选择今天或未来的日期' };
+  }
+  if (hour != null && dayDate === todayStr && hour <= pdtNow.getHours()) {
     return { success: false, message: '该时段已过，请选择未来的时段' };
   }
 
@@ -149,10 +152,13 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
   role = role || '输出';
   dayDate = dayDate || weekDate;
 
-  // 拒绝创建已过时段的车队
+  // 拒绝创建已过日期或时段的车队
   var pdtNow = getPDTNow();
   var todayStr = formatDateStr(pdtNow);
-  if (dayDate < todayStr || (dayDate === todayStr && hour <= pdtNow.getHours())) {
+  if (dayDate < todayStr) {
+    return { success: false, message: '该日期已过，请选择今天或未来的日期' };
+  }
+  if (dayDate === todayStr && hour <= pdtNow.getHours()) {
     return { success: false, message: '该时段已过，请选择未来的时段' };
   }
 
