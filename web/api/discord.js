@@ -77,34 +77,31 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Step 2: time selected → show role picker
+    // Switch role button on time picker
+    if (cid.startsWith('switchrole:')) {
+      var parts = cid.split(':');
+      var mode = parts[1], newRole = parts[2];
+      return deferComponentAndProcess(res, appId, token, function() {
+        return showTimePickerWithRole(userId, displayName, mode, newRole);
+      });
+    }
+
+    // Step 2: time selected → show recurring picker (role already known)
     if (cid.startsWith('time:')) {
       var parts = cid.split(':');
-      var mode = parts[1];
+      var mode = parts[1], role = parts[2];
       var hour = values[0]; // from select menu
+      var emoji = role === '霖霖' ? '🟢' : '🔵';
       return res.json(update({
-        content: '**选择职业：**',
+        content: '**' + emoji + role + '** · 每周自动报名此时段？',
         components: [{ type: 1, components: [
-          { type: 2, style: 1, label: '🔵 输出', custom_id: 'role:' + mode + ':' + hour + ':输出' },
-          { type: 2, style: 3, label: '🟢 霖霖', custom_id: 'role:' + mode + ':' + hour + ':霖霖' }
+          { type: 2, style: 1, label: '每周自动', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':yes' },
+          { type: 2, style: 2, label: '仅本周', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':no' }
         ] }]
       }));
     }
 
-    // Step 3: role selected → show recurring picker
-    if (cid.startsWith('role:')) {
-      var parts = cid.split(':');
-      var emoji = parts[3] === '霖霖' ? '🟢' : '🔵';
-      return res.json(update({
-        content: '**职业：' + emoji + parts[3] + '**\n每周自动报名此时段？',
-        components: [{ type: 1, components: [
-          { type: 2, style: 1, label: '每周自动', custom_id: 'done:' + parts[1] + ':' + parts[2] + ':' + parts[3] + ':yes' },
-          { type: 2, style: 2, label: '仅本周', custom_id: 'done:' + parts[1] + ':' + parts[2] + ':' + parts[3] + ':no' }
-        ] }]
-      }));
-    }
-
-    // Step 4: finalize
+    // Step 3: finalize
     if (cid.startsWith('done:')) {
       var parts = cid.split(':');
       var mode = parts[1], hour = parts[2], role = parts[3], rec = parts[4] === 'yes';
@@ -188,13 +185,31 @@ function getCurrentSunday() {
 async function callApi(action, data) { data = data || {}; data.action = action; return await callCloudFunction('api', data); }
 async function callLogin(uid, name) { return await callCloudFunction('login', { userId: uid, nickname: name }); }
 
-async function getSlotCounts(wd) {
+async function getSlotData(wd, userId) {
   var res = await callApi('getSlots', { weekDate: wd });
   var slots = (res.success && res.slots) ? res.slots : [];
   var counts = {};
-  HOURS.forEach(function(h) { counts[h] = 0; });
-  slots.forEach(function(s) { counts[s.hour] = (counts[s.hour] || 0) + s.count; });
-  return counts;
+  var carCounts = {};
+  var fullCars = {};
+  var userRole = null;
+  HOURS.forEach(function(h) { counts[h] = 0; carCounts[h] = 0; fullCars[h] = 0; });
+  slots.forEach(function(s) {
+    counts[s.hour] = (counts[s.hour] || 0) + s.count;
+    carCounts[s.hour] = (carCounts[s.hour] || 0) + 1;
+    if (s.full) fullCars[s.hour] = (fullCars[s.hour] || 0) + 1;
+    if (userId) {
+      s.members.forEach(function(m) {
+        if (m.openid === userId) userRole = m.role;
+      });
+    }
+  });
+  return { counts: counts, carCounts: carCounts, fullCars: fullCars, userRole: userRole, slots: slots };
+}
+
+function progressBar(count, max) {
+  var filled = Math.round((count / max) * 10);
+  var empty = 10 - filled;
+  return '▓'.repeat(filled) + '░'.repeat(empty) + ' ' + count + '/' + max;
 }
 
 // ===== Step 2: time picker =====
@@ -202,11 +217,17 @@ async function getSlotCounts(wd) {
 async function showTimePicker(userId, displayName, mode) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
-  var counts = await getSlotCounts(weekDate);
+  var data = await getSlotData(weekDate, userId);
+  var counts = data.counts;
+  // Detect user's last role for memory
+  var lastRole = data.userRole || '输出';
 
   var lines = HOURS.map(function(h) {
     var c = counts[h] || 0;
-    return discordTime(weekDate, h) + ' — ' + (c > 0 ? c + '人' : '虚位以待');
+    var cars = data.carCounts[h] || 0;
+    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
+    var bar = progressBar(c, cars * 10);
+    return discordTime(weekDate, h) + ' ' + bar + ' (' + cars + '车)';
   });
 
   var options = [];
@@ -219,11 +240,57 @@ async function showTimePicker(userId, displayName, mode) {
     options.push({ label: '第' + (i+1) + '场 (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
   });
 
+  var roleEmoji = lastRole === '霖霖' ? '🟢' : '🔵';
+
   return update({
-    content: '**选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n' + lines.join('\n'),
-    components: [{ type: 1, components: [{
-      type: 3, custom_id: 'time:' + mode, placeholder: '选择时段...', options: options
-    }] }]
+    content: '**选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
+      + '当前职业：' + roleEmoji + lastRole + '\n\n' + lines.join('\n'),
+    components: [
+      { type: 1, components: [{
+        type: 3, custom_id: 'time:' + mode + ':' + lastRole, placeholder: '选择时段...', options: options
+      }] },
+      { type: 1, components: [
+        { type: 2, style: 2, label: '切换为' + (lastRole === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (lastRole === '输出' ? '霖霖' : '输出') }
+      ] }
+    ]
+  });
+}
+
+async function showTimePickerWithRole(userId, displayName, mode, role) {
+  var weekDate = getCurrentSunday();
+  var data = await getSlotData(weekDate, userId);
+  var counts = data.counts;
+
+  var lines = HOURS.map(function(h) {
+    var c = counts[h] || 0;
+    var cars = data.carCounts[h] || 0;
+    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
+    var bar = progressBar(c, cars * 10);
+    return discordTime(weekDate, h) + ' ' + bar + ' (' + cars + '车)';
+  });
+
+  var options = [];
+  if (mode === 'quick') {
+    options.push({ label: '🎲 随缘', value: 'any', description: '加入最快满的车' });
+  }
+  HOURS.forEach(function(h, i) {
+    var c = counts[h] || 0;
+    var fire = c >= 7 ? ' 🔥' : '';
+    options.push({ label: '第' + (i+1) + '场 (' + c + '人)' + fire, value: String(h), description: h + ':00 PT' });
+  });
+
+  var roleEmoji = role === '霖霖' ? '🟢' : '🔵';
+  return update({
+    content: '**选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
+      + '当前职业：' + roleEmoji + role + '\n\n' + lines.join('\n'),
+    components: [
+      { type: 1, components: [{
+        type: 3, custom_id: 'time:' + mode + ':' + role, placeholder: '选择时段...', options: options
+      }] },
+      { type: 1, components: [
+        { type: 2, style: 2, label: '切换为' + (role === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (role === '输出' ? '霖霖' : '输出') }
+      ] }
+    ]
   });
 }
 
@@ -305,9 +372,15 @@ async function handleProxy(userId, displayName, opts) {
 async function startMove(userId, displayName) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
-  var counts = await getSlotCounts(weekDate);
+  var data = await getSlotData(weekDate, null);
+  var counts = data.counts;
 
-  var lines = HOURS.map(function(h) { return discordTime(weekDate, h) + ' — ' + (counts[h] || 0) + '人'; });
+  var lines = HOURS.map(function(h) {
+    var c = counts[h] || 0;
+    var cars = data.carCounts[h] || 0;
+    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
+    return discordTime(weekDate, h) + ' ' + progressBar(c, cars * 10) + ' (' + cars + '车)';
+  });
   var options = HOURS.map(function(h, i) {
     return { label: '第' + (i+1) + '场 (' + (counts[h]||0) + '人)', value: String(h), description: h + ':00 PT' };
   });
@@ -381,7 +454,8 @@ async function buildBoardEmbed(weekDate) {
         var leaderMember = car.members.find(function(m) { return m.openid === car.leader; });
         if (leaderMember) leaderName = ' 👑' + leaderMember.nickname;
       }
-      lines.push('**第' + (car.carIndex + 1) + '车** (' + car.count + '/10)' + leaderName);
+      var bar = progressBar(car.count, 10);
+      lines.push('**第' + (car.carIndex + 1) + '车** ' + bar + leaderName);
 
       // Members: leader first, then others
       var sorted = car.members.slice().sort(function(a, b) {
