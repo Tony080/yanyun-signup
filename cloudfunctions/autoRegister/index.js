@@ -53,6 +53,8 @@ exports.main = async (event, context) => {
   for (var i = 0; i < usersRes.data.length; i++) {
     var user = usersRes.data[i];
     var hour = user.recurringHour;
+    var dayIndex = user.recurringDay || 0; // 默认周日
+    var dayDate = getDayDate(weekDate, dayIndex);
 
     // 检查是否已在本周报名
     var existCheck = await db.collection('slots')
@@ -65,9 +67,9 @@ exports.main = async (event, context) => {
       continue;
     }
 
-    // 寻找 count 最大的非满车（优先填满车，与 quickJoin 一致）
+    // 寻找 count 最大的非满车
     var cars = await db.collection('slots')
-      .where({ weekDate: weekDate, hour: hour, full: _.neq(true) })
+      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) })
       .orderBy('count', 'desc')
       .limit(1)
       .get();
@@ -80,6 +82,7 @@ exports.main = async (event, context) => {
           members: _.push({
             openid: user.openid,
             nickname: user.nickname,
+            role: user.role || '输出',
             joinedAt: db.serverDate()
           }),
           count: newCount,
@@ -89,7 +92,7 @@ exports.main = async (event, context) => {
     } else {
       // 开新车
       var allCars = await db.collection('slots')
-        .where({ weekDate: weekDate, hour: hour })
+        .where({ weekDate: weekDate, dayDate: dayDate, hour: hour })
         .orderBy('carIndex', 'desc')
         .limit(1)
         .get();
@@ -99,6 +102,7 @@ exports.main = async (event, context) => {
       await db.collection('slots').add({
         data: {
           weekDate: weekDate,
+          dayDate: dayDate,
           hour: hour,
           carIndex: newCarIndex,
           members: [{ openid: user.openid, nickname: user.nickname, role: user.role || '输出', joinedAt: db.serverDate() }],
@@ -110,7 +114,7 @@ exports.main = async (event, context) => {
     }
 
     registered++;
-    console.log('[自动报名] ' + user.nickname + ' → ' + hour + ':00 PDT');
+    console.log('[自动报名] ' + user.nickname + ' → day' + dayIndex + ' ' + hour + ':00 PDT');
   }
 
   // 标记本周已完成
@@ -150,4 +154,11 @@ function formatDate(date) {
   var m = String(date.getMonth() + 1).padStart(2, '0');
   var d = String(date.getDate()).padStart(2, '0');
   return y + '-' + m + '-' + d;
+}
+
+function getDayDate(weekDate, dayIndex) {
+  var p = weekDate.split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() + (dayIndex || 0));
+  return formatDate(d);
 }

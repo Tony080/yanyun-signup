@@ -6,6 +6,19 @@ const { callCloudFunction } = require('../lib/wxcloud');
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 const PDT_OFFSET = -7;
 var HOURS = [14, 15, 16, 17, 18, 19, 20, 21, 22];
+var WEEKDAY_NAMES = ['周日','周一','周二','周三','周四','周五','周六'];
+
+function getDaysOfWeek(weekDate) {
+  var p = weekDate.split('-');
+  var sun = new Date(+p[0], +p[1]-1, +p[2]);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(sun);
+    d.setDate(sun.getDate() + i);
+    days.push({ dayIndex: i, dayDate: d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()), dayName: WEEKDAY_NAMES[i], shortDate: (d.getMonth()+1) + '/' + d.getDate() });
+  }
+  return days;
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -69,51 +82,69 @@ module.exports = async function handler(req, res) {
     var cid = interaction.data.custom_id;
     var values = interaction.data.values || [];
 
-    // Step 1: mode selection → show time picker
+    // Step 1: mode selection → show day picker
     if (cid === 'mode:quick' || cid === 'mode:create') {
       var mode = cid.split(':')[1];
       return deferComponentAndProcess(res, appId, token, function() {
-        return showTimePicker(userId, displayName, mode);
+        return showDayPicker(userId, displayName, mode);
+      });
+    }
+
+    // Step 2: day selected → show time picker
+    if (cid.startsWith('day:')) {
+      var parts = cid.split(':');
+      var mode = parts[1], dayIndex = parseInt(parts[2]);
+      return deferComponentAndProcess(res, appId, token, function() {
+        return showTimePicker(userId, displayName, mode, dayIndex);
       });
     }
 
     // Switch role button on time picker
     if (cid.startsWith('switchrole:')) {
       var parts = cid.split(':');
-      var mode = parts[1], newRole = parts[2];
+      var mode = parts[1], newRole = parts[2], dayIndex = parseInt(parts[3]);
       return deferComponentAndProcess(res, appId, token, function() {
-        return showTimePickerWithRole(userId, displayName, mode, newRole);
+        return showTimePickerWithRole(userId, displayName, mode, newRole, dayIndex);
       });
     }
 
-    // Step 2: time selected → show recurring picker (role already known)
+    // Step 3: time selected → show recurring picker (role already known)
     if (cid.startsWith('time:')) {
       var parts = cid.split(':');
-      var mode = parts[1], role = parts[2];
+      var mode = parts[1], role = parts[2], dayIndex = parts[3];
       var hour = values[0]; // from select menu
       var emoji = role === '霖霖' ? '🟢' : '🔵';
       return res.json(update({
         content: '**' + emoji + role + '** · 每周自动报名此时段？',
         components: [{ type: 1, components: [
-          { type: 2, style: 1, label: '每周自动', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':yes' },
-          { type: 2, style: 2, label: '仅本周', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':no' }
+          { type: 2, style: 1, label: '每周自动', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':' + dayIndex + ':yes' },
+          { type: 2, style: 2, label: '仅本周', custom_id: 'done:' + mode + ':' + hour + ':' + role + ':' + dayIndex + ':no' }
         ] }]
       }));
     }
 
-    // Step 3: finalize
+    // Step 4: finalize
     if (cid.startsWith('done:')) {
       var parts = cid.split(':');
-      var mode = parts[1], hour = parts[2], role = parts[3], rec = parts[4] === 'yes';
+      var mode = parts[1], hour = parts[2], role = parts[3], dayIndex = parseInt(parts[4]), rec = parts[5] === 'yes';
       return deferComponentAndProcess(res, appId, token, function() {
-        return finishSignup(userId, displayName, mode, hour, role, rec);
+        return finishSignup(userId, displayName, mode, hour, role, rec, dayIndex);
+      });
+    }
+
+    // Move: day selected
+    if (cid.startsWith('move_day:')) {
+      var dayIndex = parseInt(cid.split(':')[1]);
+      return deferComponentAndProcess(res, appId, token, function() {
+        return showMoveTimePicker(userId, displayName, dayIndex);
       });
     }
 
     // Move: time selected
-    if (cid === 'move_time') {
+    if (cid === 'move_time' || cid.startsWith('move_time:')) {
+      var moveDayIndex = cid.indexOf(':') > 4 ? parseInt(cid.split(':')[1]) : 0;
       return deferComponentAndProcess(res, appId, token, function() {
-        return finishMove(userId, displayName, values[0]);
+        return finishMove(userId, displayName, values[0], moveDayIndex);
       });
     }
 
@@ -185,9 +216,12 @@ function getCurrentSunday() {
 async function callApi(action, data) { data = data || {}; data.action = action; return await callCloudFunction('api', data); }
 async function callLogin(uid, name) { return await callCloudFunction('login', { userId: uid, nickname: name }); }
 
-async function getSlotData(wd, userId) {
+async function getSlotData(wd, userId, dayDate) {
   var res = await callApi('getSlots', { weekDate: wd });
   var slots = (res.success && res.slots) ? res.slots : [];
+  if (dayDate) {
+    slots = slots.filter(function(s) { return s.dayDate === dayDate; });
+  }
   var counts = {};
   var carCounts = {};
   var fullCars = {};
@@ -212,22 +246,62 @@ function progressBar(count, max) {
   return '▓'.repeat(filled) + '░'.repeat(empty) + ' ' + count + '/' + max;
 }
 
-// ===== Step 2: time picker =====
+// ===== Step 1.5: day picker =====
 
-async function showTimePicker(userId, displayName, mode) {
+async function showDayPicker(userId, displayName, mode) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
   var data = await getSlotData(weekDate, userId);
+  var days = getDaysOfWeek(weekDate);
+
+  // Count people per day
+  var dayCounts = {};
+  days.forEach(function(d) { dayCounts[d.dayIndex] = 0; });
+  data.slots.forEach(function(s) {
+    days.forEach(function(d) {
+      if (s.dayDate === d.dayDate) {
+        dayCounts[d.dayIndex] = (dayCounts[d.dayIndex] || 0) + s.count;
+      }
+    });
+  });
+
+  var buttons = days.map(function(d) {
+    var c = dayCounts[d.dayIndex] || 0;
+    var label = d.dayName + ' ' + d.shortDate + (c > 0 ? ' (' + c + '人)' : '');
+    return { type: 2, style: c > 0 ? 1 : 2, label: label, custom_id: 'day:' + mode + ':' + d.dayIndex };
+  });
+
+  // Discord allows max 5 buttons per row
+  var rows = [];
+  rows.push({ type: 1, components: buttons.slice(0, 4) });
+  rows.push({ type: 1, components: buttons.slice(4, 7) });
+
+  return update({
+    content: '**选择日期' + (mode === 'create' ? '创建车队' : '报名') + '：**',
+    components: rows
+  });
+}
+
+// ===== Step 2: time picker =====
+
+async function showTimePicker(userId, displayName, mode, dayIndex) {
+  var weekDate = getCurrentSunday();
+  var days = getDaysOfWeek(weekDate);
+  var dayInfo = days[dayIndex];
+  var dayDate = dayInfo.dayDate;
+
+  var data = await getSlotData(weekDate, userId, dayDate);
   var counts = data.counts;
-  // Detect user's last role for memory
-  var lastRole = data.userRole || '输出';
+  // Detect user's last role for memory (check all slots, not just filtered)
+  var allData = await getSlotData(weekDate, userId);
+  var lastRole = allData.userRole || '输出';
 
   var lines = HOURS.map(function(h) {
     var c = counts[h] || 0;
     var cars = data.carCounts[h] || 0;
-    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
+    if (c === 0) return discordTime(dayDate, h) + ' — 虚位以待';
     var bar = progressBar(c, cars * 10);
-    return discordTime(weekDate, h) + ' ' + bar + ' (' + cars + '车)';
+    return discordTime(dayDate, h) + ' ' + bar + ' (' + cars + '车)';
   });
 
   var options = [];
@@ -243,30 +317,34 @@ async function showTimePicker(userId, displayName, mode) {
   var roleEmoji = lastRole === '霖霖' ? '🟢' : '🔵';
 
   return update({
-    content: '**选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
+    content: '**' + dayInfo.dayName + ' ' + dayInfo.shortDate + ' · 选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
       + '当前职业：' + roleEmoji + lastRole + '\n\n' + lines.join('\n'),
     components: [
       { type: 1, components: [{
-        type: 3, custom_id: 'time:' + mode + ':' + lastRole, placeholder: '选择时段...', options: options
+        type: 3, custom_id: 'time:' + mode + ':' + lastRole + ':' + dayIndex, placeholder: '选择时段...', options: options
       }] },
       { type: 1, components: [
-        { type: 2, style: 2, label: '切换为' + (lastRole === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (lastRole === '输出' ? '霖霖' : '输出') }
+        { type: 2, style: 2, label: '切换为' + (lastRole === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (lastRole === '输出' ? '霖霖' : '输出') + ':' + dayIndex }
       ] }
     ]
   });
 }
 
-async function showTimePickerWithRole(userId, displayName, mode, role) {
+async function showTimePickerWithRole(userId, displayName, mode, role, dayIndex) {
   var weekDate = getCurrentSunday();
-  var data = await getSlotData(weekDate, userId);
+  var days = getDaysOfWeek(weekDate);
+  var dayInfo = days[dayIndex];
+  var dayDate = dayInfo.dayDate;
+
+  var data = await getSlotData(weekDate, userId, dayDate);
   var counts = data.counts;
 
   var lines = HOURS.map(function(h) {
     var c = counts[h] || 0;
     var cars = data.carCounts[h] || 0;
-    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
+    if (c === 0) return discordTime(dayDate, h) + ' — 虚位以待';
     var bar = progressBar(c, cars * 10);
-    return discordTime(weekDate, h) + ' ' + bar + ' (' + cars + '车)';
+    return discordTime(dayDate, h) + ' ' + bar + ' (' + cars + '车)';
   });
 
   var options = [];
@@ -281,14 +359,14 @@ async function showTimePickerWithRole(userId, displayName, mode, role) {
 
   var roleEmoji = role === '霖霖' ? '🟢' : '🔵';
   return update({
-    content: '**选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
+    content: '**' + dayInfo.dayName + ' ' + dayInfo.shortDate + ' · 选择时段' + (mode === 'create' ? '创建车队' : '报名') + '：**\n'
       + '当前职业：' + roleEmoji + role + '\n\n' + lines.join('\n'),
     components: [
       { type: 1, components: [{
-        type: 3, custom_id: 'time:' + mode + ':' + role, placeholder: '选择时段...', options: options
+        type: 3, custom_id: 'time:' + mode + ':' + role + ':' + dayIndex, placeholder: '选择时段...', options: options
       }] },
       { type: 1, components: [
-        { type: 2, style: 2, label: '切换为' + (role === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (role === '输出' ? '霖霖' : '输出') }
+        { type: 2, style: 2, label: '切换为' + (role === '输出' ? '🟢 霖霖' : '🔵 输出'), custom_id: 'switchrole:' + mode + ':' + (role === '输出' ? '霖霖' : '输出') + ':' + dayIndex }
       ] }
     ]
   });
@@ -296,22 +374,25 @@ async function showTimePickerWithRole(userId, displayName, mode, role) {
 
 // ===== Finalize signup =====
 
-async function finishSignup(userId, displayName, mode, hourStr, role, recurring) {
+async function finishSignup(userId, displayName, mode, hourStr, role, recurring, dayIndex) {
   var weekDate = getCurrentSunday();
+  var days = getDaysOfWeek(weekDate);
+  var dayInfo = days[dayIndex];
+  var dayDate = dayInfo.dayDate;
   var hour = hourStr === 'any' ? null : parseInt(hourStr);
   var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
 
   var res = await callApi(action, {
-    userId: userId, weekDate: weekDate, hour: hour,
+    userId: userId, weekDate: weekDate, dayDate: dayDate, hour: hour,
     nickname: displayName, role: role, recurring: recurring
   });
 
   if (!res.success) return update({ content: '❌ ' + res.message, components: [] });
 
   var emoji = role === '霖霖' ? '🟢' : '🔵';
-  var timeLabel = hour !== null ? discordTime(weekDate, hour) : '随缘';
+  var timeLabel = hour !== null ? discordTime(dayDate, hour) : '随缘';
   var modeLabel = mode === 'create' ? '创建了车队' : '加入了';
-  var msg = '✅ **' + displayName + '** ' + modeLabel + ' ' + timeLabel
+  var msg = '✅ **' + displayName + '** ' + modeLabel + ' ' + dayInfo.dayName + ' ' + timeLabel
     + ' 第' + (res.carIndex + 1) + '车 ' + emoji + role
     + (recurring ? '（每周自动）' : '');
 
@@ -373,33 +454,73 @@ async function startMove(userId, displayName) {
   var weekDate = getCurrentSunday();
   await callLogin(userId, displayName);
   var data = await getSlotData(weekDate, null);
+  var days = getDaysOfWeek(weekDate);
+
+  // Count people per day
+  var dayCounts = {};
+  days.forEach(function(d) { dayCounts[d.dayIndex] = 0; });
+  data.slots.forEach(function(s) {
+    days.forEach(function(d) {
+      if (s.dayDate === d.dayDate) {
+        dayCounts[d.dayIndex] = (dayCounts[d.dayIndex] || 0) + s.count;
+      }
+    });
+  });
+
+  var buttons = days.map(function(d) {
+    var c = dayCounts[d.dayIndex] || 0;
+    var label = d.dayName + ' ' + d.shortDate + (c > 0 ? ' (' + c + '人)' : '');
+    return { type: 2, style: c > 0 ? 1 : 2, label: label, custom_id: 'move_day:' + d.dayIndex };
+  });
+
+  var rows = [];
+  rows.push({ type: 1, components: buttons.slice(0, 4) });
+  rows.push({ type: 1, components: buttons.slice(4, 7) });
+
+  return replyRich({
+    content: '**选择要挪到的日期：**',
+    components: rows,
+    flags: 64
+  });
+}
+
+async function showMoveTimePicker(userId, displayName, dayIndex) {
+  var weekDate = getCurrentSunday();
+  var days = getDaysOfWeek(weekDate);
+  var dayInfo = days[dayIndex];
+  var dayDate = dayInfo.dayDate;
+
+  var data = await getSlotData(weekDate, null, dayDate);
   var counts = data.counts;
 
   var lines = HOURS.map(function(h) {
     var c = counts[h] || 0;
     var cars = data.carCounts[h] || 0;
-    if (c === 0) return discordTime(weekDate, h) + ' — 虚位以待';
-    return discordTime(weekDate, h) + ' ' + progressBar(c, cars * 10) + ' (' + cars + '车)';
+    if (c === 0) return discordTime(dayDate, h) + ' — 虚位以待';
+    return discordTime(dayDate, h) + ' ' + progressBar(c, cars * 10) + ' (' + cars + '车)';
   });
   var options = HOURS.map(function(h, i) {
     return { label: '第' + (i+1) + '场 (' + (counts[h]||0) + '人)', value: String(h), description: h + ':00 PT' };
   });
 
-  return replyRich({
-    content: '**选择要挪到的时段：**\n' + lines.join('\n'),
+  return update({
+    content: '**' + dayInfo.dayName + ' ' + dayInfo.shortDate + ' · 选择要挪到的时段：**\n' + lines.join('\n'),
     components: [{ type: 1, components: [{
-      type: 3, custom_id: 'move_time', placeholder: '选择目标时段...', options: options
-    }] }],
-    flags: 64
+      type: 3, custom_id: 'move_time:' + dayIndex, placeholder: '选择目标时段...', options: options
+    }] }]
   });
 }
 
-async function finishMove(userId, displayName, hourStr) {
+async function finishMove(userId, displayName, hourStr, dayIndex) {
   var weekDate = getCurrentSunday();
-  var res = await callApi('move', { userId: userId, weekDate: weekDate, targetHour: parseInt(hourStr), nickname: displayName });
+  var days = getDaysOfWeek(weekDate);
+  var dayInfo = days[dayIndex];
+  var dayDate = dayInfo.dayDate;
+
+  var res = await callApi('move', { userId: userId, weekDate: weekDate, targetDayDate: dayDate, targetHour: parseInt(hourStr), nickname: displayName });
   if (!res.success) return update({ content: '❌ ' + res.message, components: [] });
   var board = await buildBoardEmbed(weekDate);
-  return update({ content: '🔄 **' + displayName + '** 挪到了 ' + discordTime(weekDate, parseInt(hourStr)), embeds: [board], components: [] });
+  return update({ content: '🔄 **' + displayName + '** 挪到了 ' + dayInfo.dayName + ' ' + discordTime(dayDate, parseInt(hourStr)), embeds: [board], components: [] });
 }
 
 // ===== Leave / Board / Rename =====
@@ -430,51 +551,58 @@ async function handleRename(userId, opts) {
 async function buildBoardEmbed(weekDate) {
   var res = await callApi('getSlots', { weekDate: weekDate });
   var slots = (res.success && res.slots) ? res.slots : [];
+  var days = getDaysOfWeek(weekDate);
 
   var firstDate = '<t:' + pdtToUnix(weekDate, 14) + ':D>';
-  var byHour = {};
   var totalPeople = 0;
+  slots.forEach(function(s) { totalPeople += s.count; });
+
+  // Group slots by dayDate then hour
+  var byDayHour = {};
   slots.forEach(function(s) {
-    if (!byHour[s.hour]) byHour[s.hour] = [];
-    byHour[s.hour].push(s);
-    totalPeople += s.count;
+    var key = (s.dayDate || weekDate) + ':' + s.hour;
+    if (!byDayHour[key]) byDayHour[key] = [];
+    byDayHour[key].push(s);
   });
 
   var fields = [];
-  HOURS.forEach(function(hour) {
-    var cars = byHour[hour];
-    if (!cars || cars.length === 0) return;
-    cars.sort(function(a, b) { return a.carIndex - b.carIndex; });
-    var lines = [];
+  days.forEach(function(dayInfo) {
+    var dayHasSlots = false;
+    HOURS.forEach(function(hour) {
+      var key = dayInfo.dayDate + ':' + hour;
+      var cars = byDayHour[key];
+      if (!cars || cars.length === 0) return;
+      dayHasSlots = true;
+      cars.sort(function(a, b) { return a.carIndex - b.carIndex; });
+      var lines = [];
 
-    cars.forEach(function(car) {
-      // Leader name in car title
-      var leaderName = '';
-      if (car.leader) {
-        var leaderMember = car.members.find(function(m) { return m.openid === car.leader; });
-        if (leaderMember) leaderName = ' 👑' + leaderMember.nickname;
-      }
-      var bar = progressBar(car.count, 10);
-      lines.push('**第' + (car.carIndex + 1) + '车** ' + bar + leaderName);
+      cars.forEach(function(car) {
+        var leaderName = '';
+        if (car.leader) {
+          var leaderMember = car.members.find(function(m) { return m.openid === car.leader; });
+          if (leaderMember) leaderName = ' 👑' + leaderMember.nickname;
+        }
+        var bar = progressBar(car.count, 10);
+        lines.push('**第' + (car.carIndex + 1) + '车** ' + bar + leaderName);
 
-      // Members: leader first, then others
-      var sorted = car.members.slice().sort(function(a, b) {
-        if (a.openid === car.leader) return -1;
-        if (b.openid === car.leader) return 1;
-        return 0;
+        var sorted = car.members.slice().sort(function(a, b) {
+          if (a.openid === car.leader) return -1;
+          if (b.openid === car.leader) return 1;
+          return 0;
+        });
+        var memberStrs = sorted.map(function(m) {
+          var emoji = m.role === '霖霖' ? '🟢' : '🔵';
+          var prefix = m.openid === car.leader ? '👑' : emoji;
+          var suffix = m.registeredBy ? '*' : '';
+          return prefix + m.nickname + suffix;
+        });
+        lines.push(memberStrs.join('  '));
       });
-      var memberStrs = sorted.map(function(m) {
-        var emoji = m.role === '霖霖' ? '🟢' : '🔵';
-        var prefix = m.openid === car.leader ? '👑' : emoji;
-        var suffix = m.registeredBy ? '*' : '';
-        return prefix + m.nickname + suffix;
-      });
-      lines.push(memberStrs.join('  '));
-    });
 
-    fields.push({
-      name: '🕐 ' + discordTime(weekDate, hour) + ' 本地时间',
-      value: lines.join('\n'), inline: false
+      fields.push({
+        name: '📅 ' + dayInfo.dayName + ' ' + dayInfo.shortDate + ' · 🕐 ' + discordTime(dayInfo.dayDate, hour) + ' 本地时间',
+        value: lines.join('\n'), inline: false
+      });
     });
   });
 

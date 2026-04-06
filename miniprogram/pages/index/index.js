@@ -2,6 +2,7 @@ var week = require('../../utils/week');
 var getCurrentSunday = week.getCurrentSunday;
 var SLOT_HOURS_PDT = week.SLOT_HOURS_PDT;
 var pdtToLocal = week.pdtToLocal;
+var getDaysOfWeek = week.getDaysOfWeek;
 
 Page({
   data: {
@@ -16,9 +17,13 @@ Page({
     myRegistration: null,
     isRecurring: false,
     recurringHour: null,
+    recurringDay: null,
     recurringLocalDisplay: '',
     loading: true,
     actionLoading: false,
+    selectedDay: 0,
+    weekDays: [],
+    allSlots: [],
 
     // 帮报名列表（报名弹窗内）
     proxyList: [],
@@ -66,10 +71,15 @@ Page({
       var openid = res.result.openid;
       var nickname = res.result.nickname;
       var recurringHour = res.result.recurringHour;
+      var recurringDay = res.result.recurringDay != null ? res.result.recurringDay : (recurringHour != null ? 0 : null);
       var weekDate = getCurrentSunday();
 
+      var weekDays = getDaysOfWeek(weekDate);
+
+      // Build timeSlots for selected day (day 0 by default)
+      var dayDate = weekDays[0].dayDate;
       var timeSlots = SLOT_HOURS_PDT.map(function (pdtHour) {
-        var local = pdtToLocal(weekDate, pdtHour);
+        var local = pdtToLocal(dayDate, pdtHour);
         return {
           pdtHour: pdtHour,
           display: local.display,
@@ -79,15 +89,16 @@ Page({
         };
       });
 
-      var first = timeSlots[0];
-      var last = timeSlots[timeSlots.length - 1];
-      var weekLabel = first.dateLabel + ' ' + first.display + ' - ' + last.shortDisplay;
-      var pdtDateParts = weekDate.split('-');
-      var pdtLabel = '美西 ' + parseInt(pdtDateParts[1]) + '月' + parseInt(pdtDateParts[2]) + '日 周日 14:00-22:00';
+      var f = weekDays[0];
+      var la = weekDays[6];
+      var weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
+      var pdtLabel = '美西每日 14:00-22:00 · 周日 2PM 刷新';
 
-      var recurringLocalDisplay = recurringHour != null
-        ? pdtToLocal(weekDate, recurringHour).display
-        : '';
+      var recurringLocalDisplay = '';
+      if (recurringHour != null && recurringDay != null) {
+        var recDayDate = weekDays[recurringDay].dayDate;
+        recurringLocalDisplay = pdtToLocal(recDayDate, recurringHour).display;
+      }
 
       var savedRole = wx.getStorageSync('yanyun_role') || '输出';
 
@@ -99,9 +110,12 @@ Page({
         weekDate: weekDate,
         weekLabel: weekLabel,
         pdtLabel: pdtLabel,
+        weekDays: weekDays,
+        selectedDay: 0,
         timeSlots: timeSlots,
         isRecurring: recurringHour != null,
         recurringHour: recurringHour,
+        recurringDay: recurringDay,
         recurringLocalDisplay: recurringLocalDisplay
       });
 
@@ -141,6 +155,7 @@ Page({
   loadSlots: async function () {
     var weekDate = this.data.weekDate;
     var openid = this.data.openid;
+    var weekDays = this.data.weekDays;
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
@@ -150,98 +165,156 @@ Page({
       if (!res.result.success) return;
 
       var slots = res.result.slots;
-      var slotsMap = {};
-      var myRegistration = null;
-
+      // Backward compat: add dayDate if missing
       for (var i = 0; i < slots.length; i++) {
-        var slot = slots[i];
-        var h = slot.hour;
-        if (!slotsMap[h]) {
-          slotsMap[h] = { cars: [], totalCount: 0 };
-        }
+        if (!slots[i].dayDate) slots[i].dayDate = slots[i].weekDate;
         // 预计算 leader 昵称供 WXML 显示
+        var slot = slots[i];
         if (slot.leader) {
           var lm = slot.members.find(function(m) { return m.openid === slot.leader; });
           slot.leaderNick = lm ? lm.nickname : '';
         } else {
           slot.leaderNick = '';
         }
-        slotsMap[h].cars.push(slot);
-        slotsMap[h].totalCount += slot.count;
+      }
 
-        if (slot.members.some(function (m) { return m.openid === openid; })) {
+      // Compute per-day totalCount
+      var dayCounts = {};
+      var myRegistration = null;
+      for (var j = 0; j < slots.length; j++) {
+        var s = slots[j];
+        if (!dayCounts[s.dayDate]) dayCounts[s.dayDate] = 0;
+        dayCounts[s.dayDate] += s.count;
+        // Find my registration across ALL days
+        if (s.members.some(function (m) { return m.openid === openid; })) {
+          var dayIdx = -1;
+          for (var k = 0; k < weekDays.length; k++) {
+            if (weekDays[k].dayDate === s.dayDate) { dayIdx = k; break; }
+          }
           myRegistration = {
-            hour: h,
-            carIndex: slot.carIndex,
-            slotId: slot._id,
-            localDisplay: this.getLocalDisplay(h)
+            hour: s.hour,
+            carIndex: s.carIndex,
+            slotId: s._id,
+            dayDate: s.dayDate,
+            dayIndex: dayIdx >= 0 ? dayIdx : 0,
+            localDisplay: pdtToLocal(s.dayDate, s.hour).display
           };
         }
       }
-
-      for (var key in slotsMap) {
-        slotsMap[key].cars.sort(function (a, b) { return a.carIndex - b.carIndex; });
-      }
-
-      // Build heatmap data
-      var timeSlots = this.data.timeSlots;
-      // Build heatmap: fixed 8rpx per person (4px), cap at 120rpx (60px)
-      var heatmapData = timeSlots.map(function(ts) {
-        var d = slotsMap[ts.pdtHour];
-        var count = d ? d.totalCount : 0;
-        var barH = count === 0 ? 4 : Math.min(count * 8, 120); // rpx units
-        var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
-        return { pdtHour: ts.pdtHour, count: count, barH: barH, tier: tier, label: ts.shortDisplay || ts.display };
+      // Update weekDays with totalCount
+      var updatedWeekDays = weekDays.map(function(wd) {
+        return Object.assign({}, wd, { totalCount: dayCounts[wd.dayDate] || 0 });
       });
-
-      // Build recommendation (find car needing specific role)
-      var recommendation = null;
-      if (!myRegistration) {
-        var self = this;
-        for (var rh in slotsMap) {
-          var rdata = slotsMap[rh];
-          for (var ci = 0; ci < rdata.cars.length; ci++) {
-            var rcar = rdata.cars[ci];
-            if (rcar.full || rcar.count < 5) continue;
-            var oc = 0, lc = 0;
-            for (var mi = 0; mi < rcar.members.length; mi++) {
-              if (rcar.members[mi].role === '霖霖') lc++; else oc++;
-            }
-            var need = null, needCount = 0;
-            if (lc < 3 && oc >= lc + 2) { need = '霖霖'; needCount = 3 - lc; }
-            else if (oc < 5 && lc >= oc) { need = '输出'; needCount = 5 - oc; }
-            if (need && (!recommendation || rcar.count > recommendation.carCount)) {
-              recommendation = {
-                hour: +rh,
-                carIndex: rcar.carIndex,
-                neededRole: need,
-                neededCount: needCount,
-                carCount: rcar.count,
-                display: pdtToLocal(this.data.weekDate, +rh).display
-              };
-            }
-          }
-        }
-      }
-
-      // Build slot metadata for compact rows
-      var slotMeta = {};
-      for (var sh in slotsMap) {
-        var sd = slotsMap[sh];
-        slotMeta[sh] = {
-          allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
-          isHot: sd.totalCount >= 20
-        };
-      }
 
       this.setData({
-        slotsMap: slotsMap, myRegistration: myRegistration, loading: false,
-        heatmapData: heatmapData, recommendation: recommendation, slotMeta: slotMeta
+        allSlots: slots,
+        myRegistration: myRegistration,
+        weekDays: updatedWeekDays,
+        loading: false
       });
+      this.rebuildSlotsMapForDay();
     } catch (err) {
       console.error('loadSlots failed', err);
       this.setData({ loading: false });
     }
+  },
+
+  rebuildSlotsMapForDay: function () {
+    var weekDays = this.data.weekDays;
+    var selectedDay = this.data.selectedDay;
+    var dayDate = weekDays[selectedDay].dayDate;
+    var allSlots = this.data.allSlots;
+    var slotsMap = {};
+
+    for (var i = 0; i < allSlots.length; i++) {
+      var slot = allSlots[i];
+      if (slot.dayDate !== dayDate) continue;
+      var h = slot.hour;
+      if (!slotsMap[h]) {
+        slotsMap[h] = { cars: [], totalCount: 0 };
+      }
+      slotsMap[h].cars.push(slot);
+      slotsMap[h].totalCount += slot.count;
+    }
+
+    for (var key in slotsMap) {
+      slotsMap[key].cars.sort(function (a, b) { return a.carIndex - b.carIndex; });
+    }
+
+    // Rebuild timeSlots for selected day
+    var timeSlots = SLOT_HOURS_PDT.map(function (pdtHour) {
+      var local = pdtToLocal(dayDate, pdtHour);
+      return {
+        pdtHour: pdtHour,
+        display: local.display,
+        shortDisplay: local.shortDisplay,
+        weekday: local.weekday,
+        dateLabel: local.dateLabel
+      };
+    });
+
+    // Build heatmap: fixed 8rpx per person, cap at 120rpx
+    var heatmapData = timeSlots.map(function(ts) {
+      var d = slotsMap[ts.pdtHour];
+      var count = d ? d.totalCount : 0;
+      var barH = count === 0 ? 4 : Math.min(count * 8, 120);
+      var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
+      return { pdtHour: ts.pdtHour, count: count, barH: barH, tier: tier, label: ts.shortDisplay || ts.display };
+    });
+
+    // Build recommendation (find car needing specific role)
+    var recommendation = null;
+    var myRegistration = this.data.myRegistration;
+    if (!myRegistration) {
+      for (var rh in slotsMap) {
+        var rdata = slotsMap[rh];
+        for (var ci = 0; ci < rdata.cars.length; ci++) {
+          var rcar = rdata.cars[ci];
+          if (rcar.full || rcar.count < 5) continue;
+          var oc = 0, lc = 0;
+          for (var mi = 0; mi < rcar.members.length; mi++) {
+            if (rcar.members[mi].role === '霖霖') lc++; else oc++;
+          }
+          var need = null, needCount = 0;
+          if (lc < 3 && oc >= lc + 2) { need = '霖霖'; needCount = 3 - lc; }
+          else if (oc < 5 && lc >= oc) { need = '输出'; needCount = 5 - oc; }
+          if (need && (!recommendation || rcar.count > recommendation.carCount)) {
+            recommendation = {
+              hour: +rh,
+              carIndex: rcar.carIndex,
+              neededRole: need,
+              neededCount: needCount,
+              carCount: rcar.count,
+              display: pdtToLocal(dayDate, +rh).display
+            };
+          }
+        }
+      }
+    }
+
+    // Build slot metadata for compact rows
+    var slotMeta = {};
+    for (var sh in slotsMap) {
+      var sd = slotsMap[sh];
+      slotMeta[sh] = {
+        allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
+        isHot: sd.totalCount >= 20
+      };
+    }
+
+    this.setData({
+      slotsMap: slotsMap,
+      timeSlots: timeSlots,
+      heatmapData: heatmapData,
+      recommendation: recommendation,
+      slotMeta: slotMeta
+    });
+  },
+
+  selectDay: function (e) {
+    var dayIndex = e.currentTarget.dataset.day;
+    this.setData({ selectedDay: dayIndex });
+    this.rebuildSlotsMapForDay();
   },
 
   // ===== 昵称 =====
@@ -470,9 +543,11 @@ Page({
 
     try {
       var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
+      var selectedDayDate = this.data.weekDays[this.data.selectedDay].dayDate;
       var callData = {
         action: action,
         weekDate: weekDate,
+        dayDate: selectedDayDate,
         hour: pdtHour,
         nickname: nickname,
         role: role,
@@ -491,16 +566,19 @@ Page({
       });
 
       if (res.result.success) {
-        var localDisplay = pdtHour !== null ? this.getLocalDisplay(pdtHour) : '随缘';
+        var displayHour = res.result.hour || pdtHour;
+        var displayDayDate = res.result.dayDate || selectedDayDate;
+        var localDisplay = displayHour !== null ? pdtToLocal(displayDayDate, displayHour).display : '随缘';
         var msg = mode === 'quick' ? '已加入 ' + localDisplay : '已创建车队 ' + localDisplay;
         if (recurring) msg += '（每周自动）';
         wx.showToast({ title: msg, icon: 'none' });
 
-        if (recurring && pdtHour !== null) {
+        if (recurring && displayHour !== null) {
           this.setData({
             isRecurring: true,
-            recurringHour: pdtHour,
-            recurringLocalDisplay: this.getLocalDisplay(pdtHour)
+            recurringHour: displayHour,
+            recurringDay: this.data.selectedDay,
+            recurringLocalDisplay: pdtToLocal(displayDayDate, displayHour).display
           });
         }
 
@@ -572,8 +650,9 @@ Page({
     var myReg = this.data.myRegistration;
     if (this.data.actionLoading) return;
 
-    var fromDisplay = this.getLocalDisplay(myReg.hour);
-    var toDisplay = this.getLocalDisplay(targetPdtHour);
+    var fromDisplay = pdtToLocal(myReg.dayDate, myReg.hour).display;
+    var moveDayDateForDisplay = this.data.weekDays[this.data.selectedDay].dayDate;
+    var toDisplay = pdtToLocal(moveDayDateForDisplay, targetPdtHour).display;
 
     var extra = '';
     if (this.data.isRecurring) {
@@ -589,9 +668,10 @@ Page({
     this.setData({ actionLoading: true });
 
     try {
+      var moveDayDate = this.data.weekDays[this.data.selectedDay].dayDate;
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'move', weekDate: weekDate, targetHour: targetPdtHour, nickname: nickname }
+        data: { action: 'move', weekDate: weekDate, targetHour: targetPdtHour, targetDayDate: moveDayDate, nickname: nickname }
       });
 
       if (res.result.success) {
@@ -599,6 +679,7 @@ Page({
         if (this.data.isRecurring) {
           this.setData({
             recurringHour: targetPdtHour,
+            recurringDay: this.data.selectedDay,
             recurringLocalDisplay: toDisplay
           });
         }
@@ -661,15 +742,18 @@ Page({
         return;
       }
       var hour = myReg.hour;
+      var day = myReg.dayIndex;
       try {
         await wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'setRecurring', hour: hour }
+          data: { action: 'setRecurring', hour: hour, day: day }
         });
+        var recDayDate = this.data.weekDays[day].dayDate;
         this.setData({
           isRecurring: true,
           recurringHour: hour,
-          recurringLocalDisplay: this.getLocalDisplay(hour)
+          recurringDay: day,
+          recurringLocalDisplay: pdtToLocal(recDayDate, hour).display
         });
         wx.showToast({ title: '已开启每周自动', icon: 'none' });
       } catch (err) {
@@ -679,11 +763,12 @@ Page({
       try {
         await wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'setRecurring', hour: null }
+          data: { action: 'setRecurring', hour: null, day: null }
         });
         this.setData({
           isRecurring: false,
           recurringHour: null,
+          recurringDay: null,
           recurringLocalDisplay: ''
         });
         wx.showToast({ title: '已取消每周自动', icon: 'none' });

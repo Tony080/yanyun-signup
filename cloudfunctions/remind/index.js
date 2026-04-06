@@ -9,7 +9,7 @@ var WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
 const DISCORD_CHANNEL_ID = '1490236180325990530';
 
 /**
- * 每小时 :50 触发，PDT 周日 13:50-21:50 发送开车前10分钟提醒
+ * 每小时 :50 触发，每天 13:50-21:50 PDT 发送开车前10分钟提醒
  */
 exports.main = async (event, context) => {
   var secrets = await getSecrets(db);
@@ -17,20 +17,18 @@ exports.main = async (event, context) => {
   var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
   var pdtNow = new Date(utcMs + PDT_OFFSET * 3600000);
 
-  if (pdtNow.getDay() !== 0) {
-    return { skipped: true, reason: 'not PDT Sunday' };
-  }
-
   var targetHour = pdtNow.getHours() + 1;
   if (targetHour < 14 || targetHour > 22) {
     return { skipped: true, reason: 'outside slot hours' };
   }
 
-  var weekDate = formatDate(pdtNow);
-  console.log('[提醒] weekDate=' + weekDate + ' targetHour=' + targetHour);
+  // 今天的 dayDate 和对应的 weekDate（回退到本周日）
+  var dayDate = formatDate(pdtNow);
+  var weekDate = getWeekDateForDay(pdtNow);
+  console.log('[提醒] weekDate=' + weekDate + ' dayDate=' + dayDate + ' targetHour=' + targetHour);
 
   var slotsRes = await db.collection('slots')
-    .where({ weekDate: weekDate, hour: targetHour })
+    .where({ weekDate: weekDate, dayDate: dayDate, hour: targetHour })
     .get();
 
   if (slotsRes.data.length === 0) {
@@ -140,6 +138,13 @@ function pdtToLocal(pdtDateStr, pdtHour) {
   var p = pdtDateStr.split('-');
   var dt = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], pdtHour - PDT_OFFSET, 0, 0));
   return WEEKDAYS[dt.getDay()] + ' ' + pad(dt.getHours()) + ':00';
+}
+
+// 回退到本周日（用于确定当天属于哪个 weekDate）
+function getWeekDateForDay(pdtNow) {
+  var result = new Date(pdtNow);
+  result.setDate(result.getDate() - pdtNow.getDay());
+  return formatDate(result);
 }
 
 function formatDate(date) {

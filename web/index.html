@@ -79,6 +79,26 @@ body {
 .role-dot.linlin.active { background: rgba(63,185,80,0.2); border-color: #3fb950; }
 .header-rules { font-size: 10px; color: #484f58; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 6px; }
 
+/* Day tabs */
+.day-tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+.day-tab {
+  flex: 1; text-align: center; padding: 6px 2px; border-radius: 8px;
+  cursor: pointer; border: 1px solid transparent; background: rgba(255,255,255,0.03);
+  transition: all 0.15s;
+}
+.day-tab:hover { border-color: #30363d; }
+.day-tab.active { background: rgba(240,180,41,0.1); border-color: rgba(240,180,41,0.3); }
+.day-tab.has-reg { background: rgba(35,134,54,0.1); border-color: rgba(35,134,54,0.3); }
+.day-tab-name { display: block; font-size: 12px; font-weight: 600; color: #e6edf3; }
+.day-tab.active .day-tab-name { color: #f0b429; }
+.day-tab-date { display: block; font-size: 9px; color: #6e7681; }
+.day-tab-count { display: block; font-size: 9px; margin-top: 1px; }
+.day-tab-dot { width: 5px; height: 5px; border-radius: 50%; margin: 3px auto 0; }
+.dot-empty { background: #21262d; }
+.dot-low { background: #238636; }
+.dot-mid { background: #3fb950; }
+.dot-hot { background: #f0b429; }
+
 .heatmap {
   display: flex; gap: 3px; align-items: flex-end; height: 70px;
   margin-bottom: 12px;
@@ -459,9 +479,13 @@ var state = {
   pdtLabel: '',
   timeSlots: [],
   slotsMap: {},
+  allSlots: [], // 全部天的 raw slots
+  weekDays: [], // [{dayIndex, dayDate, dayName, shortDate, totalCount}]
+  selectedDay: 0, // 当前选中的天 (0=周日)
   myRegistration: null,
   isRecurring: false,
   recurringHour: null,
+  recurringDay: null,
   recurringLocalDisplay: '',
   loading: true,
   actionLoading: false,
@@ -494,6 +518,7 @@ async function init() {
     state.nickname = res.nickname;
     state.recoveryCode = res.recoveryCode || '';
     state.recurringHour = res.recurringHour;
+    state.recurringDay = res.recurringDay != null ? res.recurringDay : (res.recurringHour != null ? 0 : null);
     state.isRecurring = res.recurringHour != null;
     localStorage.setItem('yanyun_nick', state.nickname);
   } catch (e) {
@@ -503,7 +528,13 @@ async function init() {
 
   state.weekDate = getCurrentSunday();
   buildTimeSlots();
-  state.recurringLocalDisplay = state.recurringHour != null ? pdtToLocal(state.weekDate, state.recurringHour).display : '';
+  if (state.recurringHour != null && state.recurringDay != null) {
+    var recDayDate = state.weekDays[state.recurringDay].dayDate;
+    var recLocal = pdtToLocal(recDayDate, state.recurringHour);
+    state.recurringLocalDisplay = recLocal.display;
+  } else {
+    state.recurringLocalDisplay = '';
+  }
 
   await loadSlots();
   state.loading = false;
@@ -568,15 +599,35 @@ function fmtDate(d) {
 }
 function pad(n) { return String(n).padStart(2,'0'); }
 
+function getDaysOfWeek(weekDate) {
+  var p = weekDate.split('-');
+  var sun = new Date(+p[0], +p[1]-1, +p[2]);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(sun);
+    d.setDate(sun.getDate() + i);
+    days.push({
+      dayIndex: i,
+      dayDate: fmtDate(d),
+      dayName: WEEKDAYS[i],
+      shortDate: (d.getMonth()+1) + '/' + d.getDate(),
+      totalCount: 0
+    });
+  }
+  return days;
+}
+
 function buildTimeSlots() {
+  state.weekDays = getDaysOfWeek(state.weekDate);
+  // timeSlots per selected day
+  var dayDate = state.weekDays[state.selectedDay].dayDate;
   state.timeSlots = SLOT_HOURS.map(function(h) {
-    var l = pdtToLocal(state.weekDate, h);
+    var l = pdtToLocal(dayDate, h);
     return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
   });
-  var f = state.timeSlots[0], la = state.timeSlots[state.timeSlots.length-1];
-  state.weekLabel = f.dateLabel + ' ' + f.display + ' - ' + la.short;
-  var pp = state.weekDate.split('-');
-  state.pdtLabel = '美西 ' + (+pp[1]) + '月' + (+pp[2]) + '日 周日 14:00-22:00';
+  var f = state.weekDays[0], la = state.weekDays[6];
+  state.weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
+  state.pdtLabel = '美西每日 14:00-22:00 · 周日 2PM 刷新';
 }
 
 // ===== 数据加载 =====
@@ -584,23 +635,50 @@ async function loadSlots() {
   try {
     var res = await callFunction('api', { action: 'getSlots', weekDate: state.weekDate });
     if (!res.success) return;
-    var slotsMap = {};
+    // 向后兼容：补 dayDate
+    res.slots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
+    state.allSlots = res.slots;
+
+    // 计算每天总人数
+    var dayCounts = {};
     state.myRegistration = null;
     res.slots.forEach(function(slot) {
-      var h = slot.hour;
-      if (!slotsMap[h]) slotsMap[h] = { cars: [], totalCount: 0 };
-      slotsMap[h].cars.push(slot);
-      slotsMap[h].totalCount += slot.count;
+      if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
+      dayCounts[slot.dayDate] += slot.count;
+      // 找到我的报名（跨所有天）
       if (slot.members.some(function(m) { return m.openid === state.userId; })) {
+        var dayIdx = state.weekDays.findIndex(function(wd) { return wd.dayDate === slot.dayDate; });
         state.myRegistration = {
-          hour: h, carIndex: slot.carIndex, slotId: slot._id,
-          localDisplay: pdtToLocal(state.weekDate, h).display
+          hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
+          dayDate: slot.dayDate, dayIndex: dayIdx >= 0 ? dayIdx : 0,
+          localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
         };
       }
     });
-    for (var k in slotsMap) slotsMap[k].cars.sort(function(a,b){ return a.carIndex - b.carIndex; });
-    state.slotsMap = slotsMap;
+    state.weekDays.forEach(function(wd) { wd.totalCount = dayCounts[wd.dayDate] || 0; });
+
+    rebuildSlotsMapForDay();
   } catch (e) { console.error('loadSlots', e); }
+}
+
+function rebuildSlotsMapForDay() {
+  var dayDate = state.weekDays[state.selectedDay].dayDate;
+  var slotsMap = {};
+  state.allSlots.forEach(function(slot) {
+    if (slot.dayDate !== dayDate) return;
+    var h = slot.hour;
+    if (!slotsMap[h]) slotsMap[h] = { cars: [], totalCount: 0 };
+    slotsMap[h].cars.push(slot);
+    slotsMap[h].totalCount += slot.count;
+  });
+  for (var k in slotsMap) slotsMap[k].cars.sort(function(a,b){ return a.carIndex - b.carIndex; });
+  state.slotsMap = slotsMap;
+  // Rebuild timeSlots display for the selected day
+  var dd = dayDate;
+  state.timeSlots = SLOT_HOURS.map(function(h) {
+    var l = pdtToLocal(dd, h);
+    return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
+  });
 }
 
 // ===== Signup Modal =====
@@ -724,28 +802,31 @@ window._signupSubmit = async function() {
 
   try {
     var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
+    var selectedDayDate = state.weekDays[state.selectedDay].dayDate;
     var params = {
       action: action,
       weekDate: state.weekDate,
+      dayDate: selectedDayDate,
       nickname: state.nickname,
       role: role,
       recurring: recurring
     };
     if (pdtHour != null) params.hour = pdtHour;
-    // 合并弹窗内的 extras + header 里的 proxyList
     var allExtras = extras.concat(state.proxyList);
     if (allExtras.length > 0) params.extraMembers = allExtras;
 
     var res = await callFunction('api', params);
     if (res.success) {
       var displayHour = res.hour || pdtHour;
+      var displayDayDate = res.dayDate || selectedDayDate;
       if (recurring && displayHour != null) {
         state.isRecurring = true;
         state.recurringHour = displayHour;
-        state.recurringLocalDisplay = pdtToLocal(state.weekDate, displayHour).display;
+        state.recurringDay = state.selectedDay;
+        state.recurringLocalDisplay = pdtToLocal(displayDayDate, displayHour).display;
       }
       var msg = mode === 'quick' ? '已加入' : '已创建车队';
-      if (displayHour != null) msg += ' ' + pdtToLocal(state.weekDate, displayHour).display;
+      if (displayHour != null) msg += ' ' + pdtToLocal(displayDayDate, displayHour).display;
       if (recurring) msg += '（每周自动）';
       showToast(msg);
       state.proxyList = []; // 清空帮报名列表
@@ -796,9 +877,10 @@ async function handleMove(pdtHour) {
   if (!await showModal('确认挪动', '从 ' + from + ' 挪到 ' + to + '？' + extra, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var res = await callFunction('api', { action: 'move', weekDate: state.weekDate, targetHour: pdtHour, nickname: state.nickname });
+    var moveDayDate = state.weekDays[state.selectedDay].dayDate;
+    var res = await callFunction('api', { action: 'move', weekDate: state.weekDate, targetHour: pdtHour, targetDayDate: moveDayDate, nickname: state.nickname });
     if (res.success) {
-      if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringLocalDisplay = to; }
+      if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringDay = state.selectedDay; state.recurringLocalDisplay = to; }
       showToast('已挪到 ' + to); await loadSlots();
     } else { showToast(res.message); }
   } catch (e) { showToast('操作失败'); }
@@ -839,11 +921,14 @@ async function toggleRecurring() {
   var newVal = !state.isRecurring;
   if (newVal && !state.myRegistration) { showToast('请先报名一个时段'); return; }
   var hour = newVal ? state.myRegistration.hour : null;
+  var day = newVal ? state.myRegistration.dayIndex : null;
   try {
-    await callFunction('api', { action: 'setRecurring', hour: hour });
+    await callFunction('api', { action: 'setRecurring', hour: hour, day: day });
     state.isRecurring = newVal;
     state.recurringHour = hour;
-    state.recurringLocalDisplay = hour != null ? pdtToLocal(state.weekDate, hour).display : '';
+    state.recurringDay = day;
+    var recDayDate = (day != null && state.weekDays[day]) ? state.weekDays[day].dayDate : state.weekDate;
+    state.recurringLocalDisplay = hour != null ? pdtToLocal(recDayDate, hour).display : '';
     showToast(newVal ? '已开启每周自动' : '已取消每周自动');
     render();
   } catch (e) { showToast('操作失败'); }
@@ -1043,6 +1128,24 @@ function render() {
   if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
   html += '</div>';
 
+  // ===== 日期 Tab 栏 =====
+  var myRegDay = s.myRegistration ? s.myRegistration.dayIndex : -1;
+  html += '<div class="day-tabs">';
+  s.weekDays.forEach(function(wd) {
+    var isActive = wd.dayIndex === s.selectedDay;
+    var isMyReg = wd.dayIndex === myRegDay;
+    var cls = 'day-tab' + (isActive ? ' active' : '') + (isMyReg && !isActive ? ' has-reg' : '');
+    var dotCls = wd.totalCount === 0 ? 'dot-empty' : wd.totalCount < 10 ? 'dot-low' : wd.totalCount < 20 ? 'dot-mid' : 'dot-hot';
+    var countColor = wd.totalCount === 0 ? '#484f58' : wd.totalCount >= 20 ? '#f0b429' : '#3fb950';
+    html += '<div class="' + cls + '" onclick="window._selectDay(' + wd.dayIndex + ')">';
+    html += '<span class="day-tab-name">' + esc(wd.dayName.replace('周','')) + '</span>';
+    html += '<span class="day-tab-date">' + esc(wd.shortDate) + '</span>';
+    html += '<span class="day-tab-count" style="color:' + countColor + '">' + (wd.totalCount > 0 ? wd.totalCount + '人' : '-') + '</span>';
+    html += '<div class="day-tab-dot ' + dotCls + '"></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
   // ===== 时段热度 Heatmap（固定 4px/人）=====
   html += '<div class="section-title">📊 时段热度</div>';
   html += '<div class="heatmap">';
@@ -1190,6 +1293,13 @@ window._saveNick = saveNickname;
 window._toggleRec = toggleRecurring;
 window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
+
+// 日期切换
+window._selectDay = function(dayIndex) {
+  state.selectedDay = dayIndex;
+  rebuildSlotsMapForDay();
+  render();
+};
 
 // 职业记忆
 window._setPreferredRole = function(role) {

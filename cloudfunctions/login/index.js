@@ -17,7 +17,8 @@ exports.main = async (event, context) => {
       openid: u.openid,
       nickname: u.nickname,
       recoveryCode: u.recoveryCode,
-      recurringHour: u.recurringHour != null ? u.recurringHour : null
+      recurringHour: u.recurringHour != null ? u.recurringHour : null,
+      recurringDay: u.recurringDay != null ? u.recurringDay : null
     };
   }
 
@@ -43,7 +44,8 @@ exports.main = async (event, context) => {
       openid: openid,
       nickname: user.nickname,
       recoveryCode: user.recoveryCode,
-      recurringHour: user.recurringHour != null ? user.recurringHour : null
+      recurringHour: user.recurringHour != null ? user.recurringHour : null,
+      recurringDay: user.recurringDay != null ? user.recurringDay : null
     };
   }
 
@@ -60,7 +62,7 @@ exports.main = async (event, context) => {
     }
   });
 
-  return { openid: openid, nickname: nickname, recoveryCode: recoveryCode, recurringHour: null };
+  return { openid: openid, nickname: nickname, recoveryCode: recoveryCode, recurringHour: null, recurringDay: null };
 };
 
 /** 生成6位恢复码 */

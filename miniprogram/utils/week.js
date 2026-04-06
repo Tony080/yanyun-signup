@@ -65,6 +65,28 @@ function pdtToLocal(pdtDateStr, pdtHour) {
   };
 }
 
+/**
+ * 获取一周 7 天的日期信息（周日到周六）
+ * @param {string} weekDate  周日日期 "2026-04-05"
+ * @returns {Array<{dayIndex, dayDate, dayName, shortDate}>}
+ */
+function getDaysOfWeek(weekDate) {
+  var parts = weekDate.split('-');
+  var sun = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(sun);
+    d.setDate(sun.getDate() + i);
+    days.push({
+      dayIndex: i,
+      dayDate: formatDate(d),
+      dayName: WEEKDAY_NAMES[i],
+      shortDate: (d.getMonth() + 1) + '/' + d.getDate()
+    });
+  }
+  return days;
+}
+
 function formatDate(date) {
   var y = date.getFullYear();
   var m = String(date.getMonth() + 1).padStart(2, '0');
@@ -89,6 +111,7 @@ module.exports = {
   WEEKDAY_NAMES,
   getPDTNow,
   getCurrentSunday,
+  getDaysOfWeek,
   pdtToLocal,
   formatDate
 };
