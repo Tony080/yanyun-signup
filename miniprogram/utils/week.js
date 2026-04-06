@@ -85,6 +85,7 @@ function getDaysOfWeek(weekDate) {
       dayIndex: i,
       dayDate: formatDate(d),
       dayName: WEEKDAY_NAMES[i],
+      dayShort: WEEKDAY_NAMES[i].replace('周', ''),
       shortDate: (d.getMonth() + 1) + '/' + d.getDate()
     });
   }

@@ -106,14 +106,19 @@
 .status-actions { display: flex; gap: 12rpx; }
 
 /* ===== Day Tabs ===== */
-.day-tabs { display: flex; white-space: nowrap; margin-bottom: 16rpx; }
-.day-tab { flex: 1; text-align: center; padding: 12rpx 4rpx; border-radius: 14rpx; border: 1rpx solid transparent; background: rgba(255,255,255,0.03); min-width: 80rpx; }
-.day-tab.active { background: rgba(240,180,41,0.1); border-color: rgba(240,180,41,0.3); }
-.day-tab.has-reg { background: rgba(35,134,54,0.1); border-color: rgba(35,134,54,0.3); }
-.day-tab-name { display: block; font-size: 24rpx; font-weight: 600; color: #e6edf3; }
+.day-tabs {
+  display: flex; gap: 6rpx; margin-bottom: 16rpx;
+}
+.day-tab {
+  flex: 1; text-align: center; padding: 10rpx 0; border-radius: 12rpx;
+  border: 2rpx solid #21262d; background: rgba(255,255,255,0.03);
+}
+.day-tab.active { background: rgba(240,180,41,0.1); border-color: rgba(240,180,41,0.4); }
+.day-tab.has-reg { background: rgba(35,134,54,0.08); border-color: rgba(35,134,54,0.3); }
+.day-tab-name { display: block; font-size: 26rpx; font-weight: 600; color: #c9d1d9; }
 .day-tab.active .day-tab-name { color: #f0b429; }
-.day-tab-date { display: block; font-size: 18rpx; color: #6e7681; }
-.day-tab-count { display: block; font-size: 18rpx; margin-top: 2rpx; }
+.day-tab-date { display: block; font-size: 20rpx; color: #6e7681; margin-top: 2rpx; }
+.day-tab-count { display: block; font-size: 20rpx; margin-top: 2rpx; }
 
 /* ===== 时段热度 Heatmap ===== */
 .section-title { font-size: 26rpx; color: #8b949e; font-weight: 600; margin-bottom: 16rpx; }

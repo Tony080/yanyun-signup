@@ -63,15 +63,15 @@
   </view>
 
   <!-- 日期选择 Tab Bar -->
-  <scroll-view scroll-x class="day-tabs" wx:if="{{!loading}}">
-    <view class="day-tab {{item.dayIndex === selectedDay ? 'active' : ''}} {{myRegistration && myRegistration.dayIndex === item.dayIndex ? 'has-reg' : ''}}"
+  <view class="day-tabs" wx:if="{{!loading}}">
+    <view class="day-tab {{item.dayIndex === selectedDay ? 'active' : ''}} {{myRegistration && myRegistration.dayIndex === item.dayIndex && item.dayIndex !== selectedDay ? 'has-reg' : ''}}"
           wx:for="{{weekDays}}" wx:key="dayIndex"
           bindtap="selectDay" data-day="{{item.dayIndex}}">
-      <text class="day-tab-name">{{item.dayName}}</text>
+      <text class="day-tab-name">{{item.dayShort}}</text>
       <text class="day-tab-date">{{item.shortDate}}</text>
       <text class="day-tab-count" style="color: {{item.totalCount >= 20 ? '#f0b429' : item.totalCount > 0 ? '#3fb950' : '#484f58'}}">{{item.totalCount > 0 ? item.totalCount + '人' : '-'}}</text>
     </view>
-  </scroll-view>
+  </view>
 
   <!-- 时段热度 Heatmap -->
   <view class="section-title" wx:if="{{!loading}}">📊 时段热度</view>
