@@ -29,6 +29,7 @@ Page({
     expandedSlots: {},
     heatmapData: [],
     recommendation: null,
+    preferredRole: '输出', // 记忆职业
 
     // Signup modal state
     showSignupModal: false,
@@ -88,10 +89,13 @@ Page({
         ? pdtToLocal(weekDate, recurringHour).display
         : '';
 
+      var savedRole = wx.getStorageSync('yanyun_role') || '输出';
+
       this.setData({
         openid: openid,
         nickname: nickname,
         nicknameInput: nickname,
+        preferredRole: savedRole,
         weekDate: weekDate,
         weekLabel: weekLabel,
         pdtLabel: pdtLabel,
@@ -181,17 +185,13 @@ Page({
 
       // Build heatmap data
       var timeSlots = this.data.timeSlots;
-      var maxCount = 1;
-      for (var ti = 0; ti < timeSlots.length; ti++) {
-        var td = slotsMap[timeSlots[ti].pdtHour];
-        if (td && td.totalCount > maxCount) maxCount = td.totalCount;
-      }
+      // Build heatmap: fixed 8rpx per person (4px), cap at 120rpx (60px)
       var heatmapData = timeSlots.map(function(ts) {
         var d = slotsMap[ts.pdtHour];
         var count = d ? d.totalCount : 0;
-        var pct = Math.max(6, Math.round((count / maxCount) * 100));
+        var barH = count === 0 ? 4 : Math.min(count * 8, 120); // rpx units
         var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
-        return { pdtHour: ts.pdtHour, count: count, pct: pct, tier: tier, label: ts.shortDisplay || ts.display };
+        return { pdtHour: ts.pdtHour, count: count, barH: barH, tier: tier, label: ts.shortDisplay || ts.display };
       });
 
       // Build recommendation (find car needing specific role)
@@ -273,6 +273,14 @@ Page({
     var list = this.data.proxyList.slice();
     list.splice(idx, 1);
     this.setData({ proxyList: list });
+  },
+
+  // ===== 职业记忆 =====
+
+  setPreferredRole: function (e) {
+    var role = e.currentTarget.dataset.role;
+    this.setData({ preferredRole: role });
+    wx.setStorageSync('yanyun_role', role);
   },
 
   // ===== 展开/折叠时段 =====
@@ -361,7 +369,7 @@ Page({
       showSignupModal: true,
       signupMode: mode,
       signupHour: options[pickerIndex].pdtHour,
-      signupRole: '输出',
+      signupRole: this.data.preferredRole,
       signupRecurring: false,
       signupExtras: [],
       extraNameInput: '',

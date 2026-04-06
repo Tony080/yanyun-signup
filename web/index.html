@@ -68,6 +68,17 @@ body {
 
 /* Heatmap */
 .section-title { font-size: 13px; color: #8b949e; font-weight: 600; margin-bottom: 8px; }
+.role-selector { display: flex; gap: 4px; flex-shrink: 0; }
+.role-dot {
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  border: 2px solid transparent; transition: all 0.15s;
+}
+.role-dot.output { background: rgba(56,139,253,0.1); color: #79c0ff; }
+.role-dot.output.active { background: rgba(56,139,253,0.2); border-color: #58a6ff; }
+.role-dot.linlin { background: rgba(63,185,80,0.1); color: #7ee787; }
+.role-dot.linlin.active { background: rgba(63,185,80,0.2); border-color: #3fb950; }
+.header-rules { font-size: 10px; color: #484f58; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 6px; }
+
 .heatmap {
   display: flex; gap: 3px; align-items: flex-end; height: 70px;
   margin-bottom: 12px;
@@ -456,6 +467,7 @@ var state = {
   actionLoading: false,
   proxyList: [], // [{nickname, role}] 帮报名列表，报名时带上
   expandedSlots: {}, // {pdtHour: true} 展开的时段
+  preferredRole: localStorage.getItem('yanyun_role') || '输出', // 记忆职业
   // Signup modal state
   signupMode: null, // 'quick' | 'create' | null
   signupHour: null,
@@ -595,7 +607,7 @@ async function loadSlots() {
 function openSignupModal(mode, preselectedHour) {
   state.signupMode = mode;
   state.signupHour = preselectedHour || null;
-  state.signupRole = '输出';
+  state.signupRole = state.preferredRole;
   state.signupRecurring = false;
   state.signupExtras = [];
   renderSignupModal();
@@ -973,7 +985,11 @@ function render() {
   html += '<div class="nickname-row"><label>角色名</label>';
   html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
   html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
-  html += '</div>';
+  html += '<div class="role-selector">';
+  html += '<span class="role-dot output ' + (s.preferredRole === '输出' ? 'active' : '') + '" onclick="window._setPreferredRole(\'输出\')">🔵 输出</span>';
+  html += '<span class="role-dot linlin ' + (s.preferredRole === '霖霖' ? 'active' : '') + '" onclick="window._setPreferredRole(\'霖霖\')">🟢 霖霖</span>';
+  html += '</div></div>';
+  html += '<div class="header-rules">每周限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>';
   // 恢复码（精简显示）
   html += '<div class="recovery-row">';
   if (s.recoveryCode) {
@@ -1027,22 +1043,17 @@ function render() {
   if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
   html += '</div>';
 
-  // ===== 时段热度 Heatmap =====
-  var maxCount = 1;
-  s.timeSlots.forEach(function(slot) {
-    var d = s.slotsMap[slot.pdtHour];
-    if (d && d.totalCount > maxCount) maxCount = d.totalCount;
-  });
+  // ===== 时段热度 Heatmap（固定 4px/人）=====
   html += '<div class="section-title">📊 时段热度</div>';
   html += '<div class="heatmap">';
   s.timeSlots.forEach(function(slot) {
     var d = s.slotsMap[slot.pdtHour];
     var count = d ? d.totalCount : 0;
-    var pct = Math.max(6, Math.round((count / maxCount) * 100));
+    var barH = count === 0 ? 2 : Math.min(count * 4, 60);
     var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
     html += '<div class="heatmap-col" onclick="window._toggleSlot(' + slot.pdtHour + ')">';
     html += '<span class="heatmap-count">' + count + '</span>';
-    html += '<div class="heatmap-bar ' + tier + '" style="height:' + pct + '%"></div>';
+    html += '<div class="heatmap-bar ' + tier + '" style="height:' + barH + 'px"></div>';
     html += '<span class="heatmap-label">' + esc(slot.short.replace(':00 ', '').replace('AM','a').replace('PM','p')) + '</span>';
     html += '</div>';
   });
@@ -1154,11 +1165,7 @@ function render() {
     html += '</div>';
   });
 
-  // 底部
-  html += '<div class="footer">';
-  html += '<span class="footer-text">每周自动刷新 | 每人每周限报一个时段 | 10人满开新车</span>';
-  html += '<span class="footer-text">时间已自动转换为你的本地时区</span>';
-  html += '</div>';
+  // 底部（规则已移到 header）
 
   document.getElementById('app').innerHTML = html;
 
@@ -1183,6 +1190,13 @@ window._saveNick = saveNickname;
 window._toggleRec = toggleRecurring;
 window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
+
+// 职业记忆
+window._setPreferredRole = function(role) {
+  state.preferredRole = role;
+  localStorage.setItem('yanyun_role', role);
+  render();
+};
 
 // 展开/折叠时段
 window._toggleSlot = function(pdtHour) {

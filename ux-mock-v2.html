@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UX Mock v2 - Heatmap / Role Memory / Footer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0f; color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 15px; line-height: 1.6;
+}
+.top-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(10,10,15,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(240,180,41,0.15);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 16px;
+}
+.nav-btn {
+  padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: 1px solid #333; background: transparent; color: #8b949e;
+  transition: all 0.3s;
+}
+.nav-btn:hover { border-color: #f0b429; color: #f0b429; }
+.nav-btn.active { background: rgba(240,180,41,0.15); border-color: #f0b429; color: #f0b429; }
+.section { display: none; padding: 70px 20px 40px; }
+.section.active { display: block; }
+.mock-container {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; justify-content: center;
+}
+.mock-title { font-size: 26px; font-weight: bold; color: #f0b429; text-align: center; margin-bottom: 4px; width: 100%; }
+.mock-subtitle { text-align: center; color: #8b949e; margin-bottom: 28px; font-size: 14px; width: 100%; }
+.phone-frame {
+  width: 375px; flex-shrink: 0;
+  background: #0d1117; border-radius: 24px; border: 2px solid #333;
+  padding: 16px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.phone-notch { width: 120px; height: 6px; background: #333; border-radius: 3px; margin: 0 auto 16px; }
+.annotations { flex: 1; min-width: 300px; }
+.anno-card { padding: 16px; border-radius: 10px; margin-bottom: 12px; border-left: 3px solid; }
+.anno-card h4 { font-size: 15px; margin-bottom: 4px; }
+.anno-card p { font-size: 13px; color: #8b949e; }
+.before-after { display: flex; gap: 12px; margin-top: 10px; }
+.ba-col { flex: 1; }
+.ba-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+.ba-label.before { color: #f85149; }
+.ba-label.after { color: #3fb950; }
+.ba-box { padding: 10px; border-radius: 8px; font-size: 12px; color: #c9d1d9; }
+.ba-box.before-box { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.2); }
+.ba-box.after-box { background: rgba(35,134,54,0.08); border: 1px solid rgba(35,134,54,0.2); }
+
+/* Shared phone components */
+.p-header {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  border: 1px solid rgba(240,180,41,0.15);
+}
+.p-title { font-size: 18px; font-weight: bold; color: #f0b429; }
+.p-week { font-size: 12px; color: #8b949e; margin-top: 2px; }
+.p-nick-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.p-nick-label { font-size: 12px; color: #8b949e; flex-shrink: 0; }
+.p-nick-input {
+  flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 6px 10px; color: #e6edf3; font-size: 13px;
+}
+.p-role-btn {
+  padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 2px solid transparent;
+}
+.p-role-output { background: rgba(56,139,253,0.2); color: #79c0ff; border-color: #58a6ff; }
+.p-role-linlin { background: rgba(63,185,80,0.1); color: #7ee787; border-color: transparent; }
+.p-role-linlin-active { background: rgba(63,185,80,0.2); color: #7ee787; border-color: #3fb950; }
+.p-role-output-inactive { background: rgba(56,139,253,0.1); color: #79c0ff; border-color: transparent; }
+
+.p-section-title { font-size: 13px; color: #8b949e; font-weight: 600; margin-bottom: 8px; }
+
+/* Heatmap styles */
+.p-heatmap { display: flex; gap: 3px; align-items: flex-end; margin-bottom: 12px; }
+.p-heatmap-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.p-hm-count { font-size: 10px; color: #8b949e; margin-bottom: 2px; }
+.p-hm-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; }
+.p-hm-label { font-size: 10px; color: #6e7681; margin-top: 3px; }
+
+.p-recurring {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.25);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+}
+.p-toggle { width: 36px; height: 20px; border-radius: 10px; background: #238636; position: relative; display: inline-block; }
+.p-toggle::after { content: ''; position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+
+.p-footer { text-align: center; padding: 16px 0; }
+.p-footer-text { font-size: 11px; color: #484f58; display: block; line-height: 1.8; }
+
+/* Slot rows */
+.p-slot {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #161b22; border-radius: 8px; padding: 10px 12px; margin-bottom: 5px;
+  border: 1px solid #21262d;
+}
+.p-slot-time { font-size: 13px; font-weight: 600; color: #e6edf3; }
+.p-slot-count { font-size: 11px; color: #8b949e; margin-left: 6px; }
+.p-slot-btn { padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; border: none; }
+.p-join { background: #238636; color: #fff; }
+
+/* Info strip */
+.p-info-strip {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  border-radius: 8px; font-size: 11px; margin-bottom: 10px;
+}
+.p-info-icon { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+  <button class="nav-btn active" onclick="showSection('problems')">问题分析</button>
+  <button class="nav-btn" onclick="showSection('a')">方案A</button>
+  <button class="nav-btn" onclick="showSection('b')">方案B</button>
+  <button class="nav-btn" onclick="showSection('c')">方案C</button>
+</div>
+
+<!-- ===== 问题分析 ===== -->
+<div class="section active" id="problems">
+  <div style="max-width:800px;margin:0 auto">
+    <div class="mock-title">3 个 UX 问题</div>
+    <div class="mock-subtitle">来自截图反馈</div>
+
+    <div class="anno-card" style="border-color:#f85149;background:rgba(248,81,73,0.08)">
+      <h4 style="color:#f85149">问题 1：热度柱状图高度没对比度</h4>
+      <p>10人和1人的柱子几乎一样高。原因：min-height: 6% 太大，且用的是百分比而非对数/绝对高度。1人时 max(6%, 1/10*100%) = 10%，和 100% 相比差距不够。</p>
+      <div class="before-after">
+        <div class="ba-col">
+          <div class="ba-label before">BEFORE</div>
+          <div class="ba-box before-box">
+            <div style="display:flex;gap:4px;align-items:flex-end;height:60px">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+                <span style="font-size:10px;color:#8b949e">1</span>
+                <div style="width:100%;height:10%;min-height:6px;background:#238636;border-radius:2px 2px 0 0"></div>
+                <span style="font-size:9px;color:#6e7681">2PM</span>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+                <span style="font-size:10px;color:#8b949e">10</span>
+                <div style="width:100%;height:100%;min-height:6px;background:#f0b429;border-radius:2px 2px 0 0"></div>
+                <span style="font-size:9px;color:#6e7681">8PM</span>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#f85149;margin-top:6px">1人 vs 10人 差异不明显</div>
+          </div>
+        </div>
+        <div class="ba-col">
+          <div class="ba-label after">SHOULD BE</div>
+          <div class="ba-box after-box">
+            <div style="display:flex;gap:4px;align-items:flex-end;height:60px">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+                <span style="font-size:10px;color:#8b949e">1</span>
+                <div style="width:100%;height:4px;background:#238636;border-radius:2px 2px 0 0"></div>
+                <span style="font-size:9px;color:#6e7681">2PM</span>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+                <span style="font-size:10px;color:#8b949e">10</span>
+                <div style="width:100%;height:55px;background:#f0b429;border-radius:2px 2px 0 0"></div>
+                <span style="font-size:9px;color:#6e7681">8PM</span>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#3fb950;margin-top:6px">对比度拉满</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="anno-card" style="border-color:#f85149;background:rgba(248,81,73,0.08)">
+      <h4 style="color:#f85149">问题 2：职业每次默认输出，没有记忆</h4>
+      <p>用户每次报名都默认"输出"，霖霖玩家每次都要手动切换。应该在角色名旁固定选择并自动记忆（存 localStorage / 云端）。</p>
+    </div>
+
+    <div class="anno-card" style="border-color:#f85149;background:rgba(248,81,73,0.08)">
+      <h4 style="color:#f85149">问题 3：底部文字突兀</h4>
+      <p>"每周自动刷新 | 每人每周限报一个时段 | 10人满开新车 | 时间已自动转换为你的本地时区" — 放在页面最底部很突兀，像 debug 信息。需要重新考虑放置位置和呈现方式。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 方案 A：极简融入 ===== -->
+<div class="section" id="a">
+  <div class="mock-container">
+    <div class="mock-title">方案 A：极简融入</div>
+    <div class="mock-subtitle">职业选择器紧贴昵称行 / 柱状图用绝对高度 / 规则文字融入 header</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <div class="p-header">
+        <div class="p-title">燕云十六声 · 百业十人本</div>
+        <div class="p-week">4/5 周日 2:00PM - 10:00PM</div>
+        <!-- 规则文字融入 header 底部 -->
+        <div style="font-size:10px;color:#484f58;margin-top:6px;border-top:1px solid rgba(255,255,255,0.04);padding-top:6px">
+          每周限报一个时段 · 10人满开新车 · 时间已转为本地时区
+        </div>
+        <div class="p-nick-row">
+          <span class="p-nick-label">角色名</span>
+          <input class="p-nick-input" value="Yuki" readonly />
+          <!-- 职业紧贴昵称右侧 -->
+          <div class="p-role-btn p-role-output">🔵 输出</div>
+        </div>
+      </div>
+
+      <!-- 递 recurring -->
+      <div class="p-recurring">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="p-toggle"></div>
+          <span style="font-size:12px;color:#c9d1d9">每周自动报名</span>
+        </div>
+        <span style="font-size:11px;color:#3fb950">周日 2:00PM</span>
+      </div>
+
+      <!-- 热度柱状图：绝对高度模式 -->
+      <div class="p-section-title">📊 时段热度</div>
+      <div class="p-heatmap" style="height:70px">
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:4px;background:#238636"></div>
+          <span class="p-hm-label">2p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">3p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:4px;background:#238636"></div>
+          <span class="p-hm-label">4p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">5p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">4</span>
+          <div class="p-hm-bar" style="height:16px;background:#238636"></div>
+          <span class="p-hm-label">6p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">10</span>
+          <div class="p-hm-bar" style="height:50px;background:#f0b429"></div>
+          <span class="p-hm-label">8p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">9p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">10p</span>
+        </div>
+      </div>
+
+      <!-- 时段列表 -->
+      <div class="p-section-title">全部时段</div>
+      <div class="p-slot">
+        <div><span class="p-slot-time">周日 2:00PM</span><span class="p-slot-count">1人</span></div>
+        <button class="p-slot-btn p-join">加入</button>
+      </div>
+      <div class="p-slot" style="border-color:rgba(240,180,41,0.3)">
+        <div><span class="p-slot-time">周日 8:00PM</span><span class="p-slot-count">10人</span><span style="font-size:10px;color:#f0b429;margin-left:4px;font-weight:bold">HOT</span></div>
+        <button class="p-slot-btn" style="background:rgba(240,180,41,0.12);color:#f0b429">开新车</button>
+      </div>
+      <div class="p-slot">
+        <div><span class="p-slot-time">周日 6:00PM</span><span class="p-slot-count">4人</span></div>
+        <button class="p-slot-btn p-join">加入</button>
+      </div>
+
+      <!-- 无底部文字 -->
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">柱状图：每人 = 固定 4px 高度</h4>
+        <p>不再用百分比。1人=4px，10人=40px，30人=120px。0人=2px 灰条。对比一目了然，不会出现"1人和10人差不多高"的问题。</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">职业：贴在昵称右侧</h4>
+        <p>紧凑一行：[角色名] [昵称输入框] [🔵输出]。点击可切换，选择后自动记忆到 localStorage。报名时直接用已选职业，不再每次默认输出。</p>
+      </div>
+      <div class="anno-card" style="border-color:#3fb950;background:rgba(35,134,54,0.08)">
+        <h4 style="color:#3fb950">规则文字：融入 header 底部</h4>
+        <p>一行小字贴在 header 底部分割线下，替代占整行的 footer。简洁、不突兀、不占额外空间。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 方案 B：信息条 ===== -->
+<div class="section" id="b">
+  <div class="mock-container">
+    <div class="mock-title">方案 B：信息条模式</div>
+    <div class="mock-subtitle">职业单独一行双按钮 / 柱状图对数缩放 / 规则变为可收起信息条</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <div class="p-header">
+        <div class="p-title">燕云十六声 · 百业十人本</div>
+        <div class="p-week">4/5 周日 2:00PM - 10:00PM</div>
+        <div class="p-nick-row">
+          <span class="p-nick-label">角色名</span>
+          <input class="p-nick-input" value="Yuki" readonly />
+        </div>
+        <!-- 职业选择独立一行 -->
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <div class="p-role-btn p-role-output" style="flex:1;text-align:center;padding:8px 0">🔵 输出</div>
+          <div class="p-role-btn" style="flex:1;text-align:center;padding:8px 0;background:rgba(63,185,80,0.08);color:#7ee787;border-color:transparent">🟢 霖霖</div>
+        </div>
+        <div style="font-size:10px;color:#484f58;margin-top:4px;text-align:center">选好后自动记忆，报名时不再重复选</div>
+      </div>
+
+      <!-- 可收起的信息条 -->
+      <div class="p-info-strip" style="background:rgba(56,139,253,0.06);border:1px solid rgba(56,139,253,0.15)">
+        <span class="p-info-icon">ℹ️</span>
+        <span style="flex:1;color:#8b949e;font-size:11px">每周限报1时段 · 10人满开新车 · 本地时区已转换</span>
+        <span style="color:#484f58;cursor:pointer;font-size:14px">×</span>
+      </div>
+
+      <div class="p-recurring">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="p-toggle"></div>
+          <span style="font-size:12px;color:#c9d1d9">每周自动报名</span>
+        </div>
+        <span style="font-size:11px;color:#3fb950">周日 2:00PM</span>
+      </div>
+
+      <!-- 热度柱状图：对数缩放 -->
+      <div class="p-section-title">📊 时段热度</div>
+      <div class="p-heatmap" style="height:70px">
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:7px;background:#238636"></div>
+          <span class="p-hm-label">2p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">3p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:7px;background:#238636"></div>
+          <span class="p-hm-label">4p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">5p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">4</span>
+          <div class="p-hm-bar" style="height:22px;background:#238636"></div>
+          <span class="p-hm-label">6p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">10</span>
+          <div class="p-hm-bar" style="height:50px;background:#f0b429"></div>
+          <span class="p-hm-label">8p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">9p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">10p</span>
+        </div>
+      </div>
+
+      <div class="p-section-title">全部时段</div>
+      <div class="p-slot">
+        <div><span class="p-slot-time">周日 2:00PM</span><span class="p-slot-count">1人</span></div>
+        <button class="p-slot-btn p-join">加入</button>
+      </div>
+      <div class="p-slot" style="border-color:rgba(240,180,41,0.3)">
+        <div><span class="p-slot-time">周日 8:00PM</span><span class="p-slot-count">10人</span><span style="font-size:10px;color:#f0b429;margin-left:4px;font-weight:bold">HOT</span></div>
+        <button class="p-slot-btn" style="background:rgba(240,180,41,0.12);color:#f0b429">开新车</button>
+      </div>
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">柱状图：对数缩放</h4>
+        <p>用 log(count+1) 映射高度。0→2px, 1→7px, 4→22px, 10→50px, 30→70px。低人数不会塌成一条线，高人数也不会撑爆容器。</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">职业：Header 内双按钮行</h4>
+        <p>在昵称下方放两个全宽按钮。像 tab 切换一样高亮当前选择。下方提示"选好后自动记忆"。优势：触控面积大，不易误触。</p>
+      </div>
+      <div class="anno-card" style="border-color:#06b6d4;background:rgba(6,182,212,0.08)">
+        <h4 style="color:#06b6d4">规则：可关闭的信息条</h4>
+        <p>蓝色信息条带 × 关闭按钮。新用户首次看到后可关闭，下次不再显示（记忆到 localStorage）。不影响老用户的界面。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 方案 C：极致精简 ===== -->
+<div class="section" id="c">
+  <div class="mock-container">
+    <div class="mock-title">方案 C：极致精简</div>
+    <div class="mock-subtitle">职业色标圆点 / 柱状图固定 5px/人 + 封顶 / 规则改为首次 tooltip</div>
+
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+
+      <div class="p-header">
+        <div class="p-title">燕云十六声 · 百业十人本</div>
+        <div class="p-week">4/5 周日 2:00PM - 10:00PM · 本地时区</div>
+        <div class="p-nick-row">
+          <span class="p-nick-label">角色名</span>
+          <input class="p-nick-input" value="Yuki" readonly />
+          <!-- 职业：色标圆点，极简 -->
+          <div style="display:flex;align-items:center;gap:2px">
+            <div style="width:24px;height:24px;border-radius:50%;background:rgba(56,139,253,0.25);border:2px solid #58a6ff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer">🔵</div>
+            <div style="width:24px;height:24px;border-radius:50%;background:rgba(63,185,80,0.08);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;opacity:0.5">🟢</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 首次用户 tooltip（可关闭） -->
+      <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:10px;padding:10px 14px;margin-bottom:10px;position:relative">
+        <span style="font-size:12px;color:#a78bfa">💡 小贴士：每周限报1个时段，10人满自动开新车</span>
+        <span style="position:absolute;right:10px;top:8px;color:#484f58;cursor:pointer;font-size:14px">×</span>
+      </div>
+
+      <div class="p-recurring">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="p-toggle"></div>
+          <span style="font-size:12px;color:#c9d1d9">每周自动报名</span>
+        </div>
+        <span style="font-size:11px;color:#3fb950">周日 2:00PM</span>
+      </div>
+
+      <!-- 热度柱状图：固定 5px/人，封顶 60px -->
+      <div class="p-section-title">📊 时段热度</div>
+      <div class="p-heatmap" style="height:70px">
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:5px;background:#238636"></div>
+          <span class="p-hm-label">2p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">3p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">1</span>
+          <div class="p-hm-bar" style="height:5px;background:#238636"></div>
+          <span class="p-hm-label">4p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">5p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">4</span>
+          <div class="p-hm-bar" style="height:20px;background:#238636"></div>
+          <span class="p-hm-label">6p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">10</span>
+          <div class="p-hm-bar" style="height:50px;background:#f0b429"></div>
+          <span class="p-hm-label">8p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">9p</span>
+        </div>
+        <div class="p-heatmap-col">
+          <span class="p-hm-count">0</span>
+          <div class="p-hm-bar" style="height:2px;background:#21262d"></div>
+          <span class="p-hm-label">10p</span>
+        </div>
+      </div>
+
+      <div class="p-section-title">全部时段</div>
+      <div class="p-slot">
+        <div><span class="p-slot-time">周日 2:00PM</span><span class="p-slot-count">1人</span></div>
+        <button class="p-slot-btn p-join">加入</button>
+      </div>
+      <div class="p-slot" style="border-color:rgba(240,180,41,0.3)">
+        <div><span class="p-slot-time">周日 8:00PM</span><span class="p-slot-count">10人</span><span style="font-size:10px;color:#f0b429;margin-left:4px;font-weight:bold">HOT</span></div>
+        <button class="p-slot-btn" style="background:rgba(240,180,41,0.12);color:#f0b429">开新车</button>
+      </div>
+
+      <!-- 无 footer 文字 -->
+    </div>
+
+    <div class="annotations">
+      <div class="anno-card" style="border-color:#f0b429;background:rgba(240,180,41,0.08)">
+        <h4 style="color:#f0b429">柱状图：5px/人 + 60px 封顶</h4>
+        <p>每人贡献 5px 高度，最大不超过 60px。0人=2px。优势：线性直觉、简单好理解。1人=5px vs 10人=50px，对比度清晰。超过12人后封顶，数字已经标在上方了。</p>
+      </div>
+      <div class="anno-card" style="border-color:#58a6ff;background:rgba(56,139,253,0.08)">
+        <h4 style="color:#58a6ff">职业：双色圆点</h4>
+        <p>两个紧凑圆点 🔵🟢 贴在昵称输入框右侧。选中的高亮+边框，未选的半透明。极省空间，适合已熟悉系统的用户。</p>
+      </div>
+      <div class="anno-card" style="border-color:#a78bfa;background:rgba(139,92,246,0.08)">
+        <h4 style="color:#a78bfa">规则：首次 tooltip</h4>
+        <p>紫色提示条，只在首次使用时显示。用户关闭后通过 localStorage 记住。同时 "本地时区" 四个字融入 header 副标题。没有 footer 了。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>
