@@ -536,20 +536,17 @@ function formatDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
-// 检查报名窗口是否开放: 周日 14:00 ~ 周六 01:00 PDT
+// 检查报名窗口是否开放: 只要在周六 01:00 PDT 截止前即可报名
 function isSignupWindowOpen(weekDateStr) {
   var pdtNow = getPDTNow();
   var p = weekDateStr.split('-');
   var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
 
-  var openTime = new Date(sunday);
-  openTime.setHours(14, 0, 0, 0);
-
   var closeTime = new Date(sunday);
   closeTime.setDate(closeTime.getDate() + 6);
   closeTime.setHours(1, 0, 0, 0);
 
-  return pdtNow >= openTime && pdtNow < closeTime;
+  return pdtNow < closeTime;
 }
 
 async function onCarFull(weekDate, hour, carNumber, members) {

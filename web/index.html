@@ -651,12 +651,10 @@ function isSignupWindowOpen(weekDateStr) {
   var pdtNow = getPDTNow();
   var p = weekDateStr.split('-');
   var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
-  var openTime = new Date(sunday);
-  openTime.setHours(14, 0, 0, 0);
   var closeTime = new Date(sunday);
   closeTime.setDate(closeTime.getDate() + 6);
   closeTime.setHours(1, 0, 0, 0);
-  return pdtNow >= openTime && pdtNow < closeTime;
+  return pdtNow < closeTime;
 }
 
 function fmt12h(hour) {
@@ -691,7 +689,7 @@ function buildTimeSlots() {
   });
   var f = rd[0], la = rd[rd.length - 1];
   state.weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-  state.pdtLabel = '滚动8天 · 每周日2PM开放报名 · 周六1AM截止';
+  state.pdtLabel = '滚动8天 · 每周期周六1AM PDT截止';
   state.selectedDayWindowOpen = isSignupWindowOpen(rd[state.selectedDay].weekDate);
 }
 
@@ -1257,7 +1255,7 @@ function render() {
     html += '</div>';
   }
   if (!s.myRegistration && !s.actionLoading && !s.selectedDayWindowOpen) {
-    html += '<div style="text-align:center;font-size:13px;color:#6e7681;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid #21262d">该周期报名尚未开放（周日 2PM PDT 开放）</div>';
+    html += '<div style="text-align:center;font-size:13px;color:#6e7681;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid #21262d">该周期报名已截止（周六 1AM PDT）</div>';
   }
 
   // ===== 每周自动 =====

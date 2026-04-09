@@ -186,22 +186,19 @@ function getWindowWeekDates() {
 
 /**
  * 检查某个 weekDate 的报名窗口是否开放
- * 开放条件: 当前 PDT >= weekDate 周日 14:00
- * 关闭条件: 当前 PDT >= weekDate+6天(周六) 01:00
+ * 只要当前时间在截止时间（周六 01:00 PDT）之前，就可以报名
+ * 未来周期也允许提前报名
  */
 function isSignupWindowOpen(weekDateStr) {
   var pdtNow = getPDTNow();
   var p = weekDateStr.split('-');
   var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
 
-  var openTime = new Date(sunday);
-  openTime.setHours(14, 0, 0, 0);
-
   var closeTime = new Date(sunday);
   closeTime.setDate(closeTime.getDate() + 6);
   closeTime.setHours(1, 0, 0, 0);
 
-  return pdtNow >= openTime && pdtNow < closeTime;
+  return pdtNow < closeTime;
 }
 
 module.exports = {

@@ -49,9 +49,9 @@
       🚗 创建车队
     </view>
   </view>
-  <!-- 报名窗口未开放提示 -->
+  <!-- 报名窗口已截止提示 -->
   <view class="window-closed-hint" wx:if="{{!myRegistration && !loading && !selectedDayWindowOpen}}">
-    <text>该周期报名尚未开放（周日 2PM PDT 开放）</text>
+    <text>该周期报名已截止（周六 1AM PDT）</text>
   </view>
 
   <!-- 每周自动 -->
