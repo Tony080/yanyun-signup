@@ -696,15 +696,24 @@ function buildTimeSlots() {
 // ===== 数据加载 =====
 async function loadSlots() {
   try {
-    var res = await callFunction('api', { action: 'getSlots', weekDate: state.windowWeekDates[0], weekDates: state.windowWeekDates });
-    if (!res.success) return;
-    res.slots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
-    state.allSlots = res.slots;
+    // 每个 weekDate 单独查，兼容新旧 API
+    var allResults = await Promise.all(state.windowWeekDates.map(function(wd) {
+      return callFunction('api', { action: 'getSlots', weekDate: wd });
+    }));
+    var allSlots = [];
+    for (var ri = 0; ri < allResults.length; ri++) {
+      var r = allResults[ri];
+      if (r && r.success && r.slots) {
+        allSlots = allSlots.concat(r.slots);
+      }
+    }
+    allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
+    state.allSlots = allSlots;
 
     // 计算每天总人数 + 每个 weekDate 的报名
     var dayCounts = {};
     state.myRegistrations = {};
-    res.slots.forEach(function(slot) {
+    allSlots.forEach(function(slot) {
       if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
       dayCounts[slot.dayDate] += slot.count;
       if (slot.members.some(function(m) { return m.openid === state.userId; })) {

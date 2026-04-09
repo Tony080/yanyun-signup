@@ -198,14 +198,21 @@ Page({
     var openid = this.data.openid;
     var rollingDays = this.data.rollingDays;
     try {
-      var res = await wx.cloud.callFunction({
-        name: 'api',
-        data: { action: 'getSlots', weekDate: windowWeekDates[0], weekDates: windowWeekDates }
-      });
+      // 每个 weekDate 单独查，兼容新旧 API
+      var allResults = await Promise.all(windowWeekDates.map(function(wd) {
+        return wx.cloud.callFunction({
+          name: 'api',
+          data: { action: 'getSlots', weekDate: wd }
+        });
+      }));
 
-      if (!res.result.success) return;
-
-      var slots = res.result.slots;
+      var slots = [];
+      for (var ri = 0; ri < allResults.length; ri++) {
+        var r = allResults[ri];
+        if (r.result && r.result.success && r.result.slots) {
+          slots = slots.concat(r.result.slots);
+        }
+      }
       // Backward compat: add dayDate if missing
       for (var i = 0; i < slots.length; i++) {
         if (!slots[i].dayDate) slots[i].dayDate = slots[i].weekDate;
