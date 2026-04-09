@@ -698,7 +698,7 @@ function buildTimeSlots() {
 // ===== 数据加载 =====
 async function loadSlots() {
   try {
-    var res = await callFunction('api', { action: 'getSlots', weekDates: state.windowWeekDates });
+    var res = await callFunction('api', { action: 'getSlots', weekDate: state.windowWeekDates[0], weekDates: state.windowWeekDates });
     if (!res.success) return;
     res.slots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
     state.allSlots = res.slots;

@@ -200,7 +200,7 @@ Page({
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'getSlots', weekDates: windowWeekDates }
+        data: { action: 'getSlots', weekDate: windowWeekDates[0], weekDates: windowWeekDates }
       });
 
       if (!res.result.success) return;
