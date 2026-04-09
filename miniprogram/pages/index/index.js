@@ -1,29 +1,33 @@
 var week = require('../../utils/week');
-var getCurrentSunday = week.getCurrentSunday;
 var SLOT_HOURS_PDT = week.SLOT_HOURS_PDT;
 var SUNDAY_DISABLED_HOURS = week.SUNDAY_DISABLED_HOURS;
 var pdtToLocal = week.pdtToLocal;
-var getDaysOfWeek = week.getDaysOfWeek;
+var getRollingWindowDays = week.getRollingWindowDays;
+var getWindowWeekDates = week.getWindowWeekDates;
+var isSignupWindowOpen = week.isSignupWindowOpen;
 
 Page({
   data: {
     openid: '',
     nickname: '',
     nicknameInput: '',
-    weekDate: '',
     weekLabel: '',
     pdtLabel: '',
     timeSlots: [],
     slotsMap: {},
+    // 滚动窗口: 当前选中天对应的 weekDate 下的报名信息
     myRegistration: null,
+    // 所有 weekDate 的报名信息: { weekDate: registration }
+    myRegistrations: {},
     isRecurring: false,
     recurringHour: null,
     recurringDay: null,
     recurringLocalDisplay: '',
     loading: true,
     actionLoading: false,
-    selectedDay: 0,
-    weekDays: [],
+    selectedDay: 0,        // windowIndex into rollingDays
+    rollingDays: [],       // 8天滚动窗口
+    windowWeekDates: [],   // 窗口涉及的 weekDates
     allSlots: [],
 
     // 帮报名列表（报名弹窗内）
@@ -57,7 +61,10 @@ Page({
     // 默认名字确认弹窗（简化版）
     showNameConfirm: false,
     nameConfirmTarget: '',
-    slotMeta: {}
+    slotMeta: {},
+
+    // 当前选中天的报名窗口状态
+    selectedDayWindowOpen: false
   },
 
   onLoad: function () {
@@ -76,32 +83,25 @@ Page({
       var nickname = res.result.nickname;
       var recurringHour = res.result.recurringHour;
       var recurringDay = res.result.recurringDay != null ? res.result.recurringDay : (recurringHour != null ? 0 : null);
-      var weekDate = getCurrentSunday();
 
-      var weekDays = getDaysOfWeek(weekDate);
+      var rollingDays = getRollingWindowDays();
+      var windowWeekDates = getWindowWeekDates();
 
-      // Build timeSlots for selected day (day 0 by default)
-      var dayDate = weekDays[0].dayDate;
-      var timeSlots = SLOT_HOURS_PDT.map(function (pdtHour) {
-        var local = pdtToLocal(dayDate, pdtHour);
-        return {
-          pdtHour: pdtHour,
-          display: local.display,
-          shortDisplay: local.shortDisplay,
-          weekday: local.weekday,
-          dateLabel: local.dateLabel
-        };
-      });
+      // 默认选中 today（windowIndex 1）
+      var defaultSelected = 1;
 
-      var f = weekDays[0];
-      var la = weekDays[6];
+      var f = rollingDays[0];
+      var la = rollingDays[rollingDays.length - 1];
       var weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-      var pdtLabel = '美西每日 14:00-22:00 · 周日 2PM 刷新';
+      var pdtLabel = '滚动8天 · 每周日2PM开放报名 · 周六1AM截止';
 
       var recurringLocalDisplay = '';
       if (recurringHour != null && recurringDay != null) {
-        var recDayDate = weekDays[recurringDay].dayDate;
-        recurringLocalDisplay = pdtToLocal(recDayDate, recurringHour).display;
+        // 在滚动窗口中找到对应 recurring 的天
+        var recDay = rollingDays.find(function(d) { return d.dayOfWeek === recurringDay; });
+        if (recDay) {
+          recurringLocalDisplay = pdtToLocal(recDay.dayDate, recurringHour).display;
+        }
       }
 
       var savedRole = wx.getStorageSync('yanyun_role') || '输出';
@@ -111,12 +111,11 @@ Page({
         nickname: nickname,
         nicknameInput: nickname,
         preferredRole: savedRole,
-        weekDate: weekDate,
         weekLabel: weekLabel,
         pdtLabel: pdtLabel,
-        weekDays: weekDays,
-        selectedDay: week.getPDTNow().getDay(),
-        timeSlots: timeSlots,
+        rollingDays: rollingDays,
+        windowWeekDates: windowWeekDates,
+        selectedDay: defaultSelected,
         isRecurring: recurringHour != null,
         recurringHour: recurringHour,
         recurringDay: recurringDay,
@@ -133,13 +132,17 @@ Page({
   },
 
   getLocalDisplay: function (pdtHour) {
-    return pdtToLocal(this.data.weekDate, pdtHour).display;
+    var rd = this.data.rollingDays;
+    var sel = this.data.selectedDay;
+    return pdtToLocal(rd[sel].dayDate, pdtHour).display;
   },
 
-  // Build hour picker options for a given day
-  buildHourPickerOptions: function (dayIndex, mode) {
-    var weekDays = this.data.weekDays;
-    var dayDate = weekDays[dayIndex].dayDate;
+  // Build hour picker options for a given windowIndex
+  buildHourPickerOptions: function (windowIndex, mode) {
+    var rollingDays = this.data.rollingDays;
+    var day = rollingDays[windowIndex];
+    var dayDate = day.dayDate;
+    var dayOfWeek = day.dayOfWeek;
     var allSlots = this.data.allSlots;
 
     // Build slotsMap for this day
@@ -168,7 +171,7 @@ Page({
       var pdtHour = SLOT_HOURS_PDT[i];
 
       // Sunday: skip disabled hours
-      if (dayIndex === 0 && SUNDAY_DISABLED_HOURS.indexOf(pdtHour) >= 0) continue;
+      if (dayOfWeek === 0 && SUNDAY_DISABLED_HOURS.indexOf(pdtHour) >= 0) continue;
 
       // Today: skip hours <= current PDT hour; past days: skip all
       if (isDayPast) continue;
@@ -182,7 +185,6 @@ Page({
 
     // If no hours available (past day), show a placeholder
     if (options.length === 0 || (options.length === 1 && options[0].pdtHour === null)) {
-      // Keep the 随缘 if present, but also note no hours
       if (options.length === 0) {
         options.push({ label: '无可选时段', pdtHour: null });
       }
@@ -192,13 +194,13 @@ Page({
   },
 
   loadSlots: async function () {
-    var weekDate = this.data.weekDate;
+    var windowWeekDates = this.data.windowWeekDates;
     var openid = this.data.openid;
-    var weekDays = this.data.weekDays;
+    var rollingDays = this.data.rollingDays;
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'getSlots', weekDate: weekDate }
+        data: { action: 'getSlots', weekDates: windowWeekDates }
       });
 
       if (!res.result.success) return;
@@ -207,7 +209,6 @@ Page({
       // Backward compat: add dayDate if missing
       for (var i = 0; i < slots.length; i++) {
         if (!slots[i].dayDate) slots[i].dayDate = slots[i].weekDate;
-        // 预计算 leader 昵称供 WXML 显示
         var slot = slots[i];
         if (slot.leader) {
           var lm = slot.members.find(function(m) { return m.openid === slot.leader; });
@@ -217,38 +218,46 @@ Page({
         }
       }
 
-      // Compute per-day totalCount
+      // Compute per-day totalCount and find registrations per weekDate
       var dayCounts = {};
-      var myRegistration = null;
+      var myRegistrations = {};
       for (var j = 0; j < slots.length; j++) {
         var s = slots[j];
         if (!dayCounts[s.dayDate]) dayCounts[s.dayDate] = 0;
         dayCounts[s.dayDate] += s.count;
-        // Find my registration across ALL days
+        // Find my registration per weekDate
         if (s.members.some(function (m) { return m.openid === openid; })) {
-          var dayIdx = -1;
-          for (var k = 0; k < weekDays.length; k++) {
-            if (weekDays[k].dayDate === s.dayDate) { dayIdx = k; break; }
+          var winIdx = -1;
+          for (var k = 0; k < rollingDays.length; k++) {
+            if (rollingDays[k].dayDate === s.dayDate) { winIdx = k; break; }
           }
-          myRegistration = {
+          myRegistrations[s.weekDate] = {
             hour: s.hour,
             carIndex: s.carIndex,
             slotId: s._id,
             dayDate: s.dayDate,
-            dayIndex: dayIdx >= 0 ? dayIdx : 0,
+            weekDate: s.weekDate,
+            windowIndex: winIdx >= 0 ? winIdx : -1,
             localDisplay: pdtToLocal(s.dayDate, s.hour).display
           };
         }
       }
-      // Update weekDays with totalCount
-      var updatedWeekDays = weekDays.map(function(wd) {
-        return Object.assign({}, wd, { totalCount: dayCounts[wd.dayDate] || 0 });
+      // Update rollingDays with totalCount
+      var updatedDays = rollingDays.map(function(rd) {
+        return Object.assign({}, rd, { totalCount: dayCounts[rd.dayDate] || 0 });
       });
+
+      // 当前选中天对应的 weekDate 的报名
+      var selectedDay = this.data.selectedDay;
+      var selectedWeekDate = updatedDays[selectedDay].weekDate;
+      var myRegistration = myRegistrations[selectedWeekDate] || null;
 
       this.setData({
         allSlots: slots,
+        myRegistrations: myRegistrations,
         myRegistration: myRegistration,
-        weekDays: updatedWeekDays,
+        rollingDays: updatedDays,
+        selectedDayWindowOpen: isSignupWindowOpen(selectedWeekDate),
         loading: false
       });
       this.rebuildSlotsMapForDay();
@@ -259,9 +268,11 @@ Page({
   },
 
   rebuildSlotsMapForDay: function () {
-    var weekDays = this.data.weekDays;
+    var rollingDays = this.data.rollingDays;
     var selectedDay = this.data.selectedDay;
-    var dayDate = weekDays[selectedDay].dayDate;
+    var day = rollingDays[selectedDay];
+    var dayDate = day.dayDate;
+    var selectedWeekDate = day.weekDate;
     var allSlots = this.data.allSlots;
     var slotsMap = {};
 
@@ -301,10 +312,14 @@ Page({
       return { pdtHour: ts.pdtHour, count: count, barH: barH, tier: tier, label: ts.shortDisplay || ts.display };
     });
 
+    // 当前选中天的 weekDate 对应的报名
+    var myRegistrations = this.data.myRegistrations;
+    var myRegistration = myRegistrations[selectedWeekDate] || null;
+    var windowOpen = isSignupWindowOpen(selectedWeekDate);
+
     // Build recommendation (find car needing specific role)
     var recommendation = null;
-    var myRegistration = this.data.myRegistration;
-    if (!myRegistration) {
+    if (!myRegistration && windowOpen) {
       for (var rh in slotsMap) {
         var rdata = slotsMap[rh];
         for (var ci = 0; ci < rdata.cars.length; ci++) {
@@ -364,13 +379,15 @@ Page({
       heatmapData: heatmapData,
       recommendation: recommendation,
       slotMeta: slotMeta,
-      pdtTodayStr: pdtTodayStr
+      pdtTodayStr: pdtTodayStr,
+      myRegistration: myRegistration,
+      selectedDayWindowOpen: windowOpen
     });
   },
 
   selectDay: function (e) {
-    var dayIndex = e.currentTarget.dataset.day;
-    this.setData({ selectedDay: dayIndex });
+    var windowIndex = e.currentTarget.dataset.day;
+    this.setData({ selectedDay: windowIndex });
     this.rebuildSlotsMapForDay();
   },
 
@@ -482,26 +499,29 @@ Page({
   openSignupModal: function (e) {
     var mode = e.currentTarget.dataset.mode; // 'quick' or 'create'
     var hour = e.currentTarget.dataset.hour;  // optional: pre-selected hour
-    var weekDays = this.data.weekDays;
+    var rollingDays = this.data.rollingDays;
     var selectedDay = this.data.selectedDay;
 
-    // Build day picker options
+    // Build day picker options (only future days with open signup window)
     var pdtNow = week.getPDTNow();
     var pdtTodayStr = week.formatDate(pdtNow);
     var dayPickerOptions = [];
-    for (var di = 0; di < weekDays.length; di++) {
-      var wd = weekDays[di];
-      var dayLabel = wd.dayName + ' ' + wd.shortDate;
-      if (wd.dayDate < pdtTodayStr) {
+    for (var di = 0; di < rollingDays.length; di++) {
+      var rd = rollingDays[di];
+      var dayLabel = rd.dayName + ' ' + rd.shortDate;
+      var windowOpen = isSignupWindowOpen(rd.weekDate);
+      if (rd.dayDate < pdtTodayStr) {
         dayLabel += '（已过）';
+      } else if (!windowOpen) {
+        dayLabel += '（未开放）';
       }
-      dayPickerOptions.push({ label: dayLabel, dayIndex: di });
+      dayPickerOptions.push({ label: dayLabel, windowIndex: di });
     }
 
     // Find picker index for current selectedDay
     var dayPickerIndex = 0;
     for (var dj = 0; dj < dayPickerOptions.length; dj++) {
-      if (dayPickerOptions[dj].dayIndex === selectedDay) {
+      if (dayPickerOptions[dj].windowIndex === selectedDay) {
         dayPickerIndex = dj;
         break;
       }
@@ -551,12 +571,12 @@ Page({
   onDayPickerChange: function (e) {
     var idx = Number(e.detail.value);
     var dayOption = this.data.dayPickerOptions[idx];
-    var newDayIndex = dayOption.dayIndex;
-    var hourOptions = this.buildHourPickerOptions(newDayIndex, this.data.signupMode);
+    var newWindowIndex = dayOption.windowIndex;
+    var hourOptions = this.buildHourPickerOptions(newWindowIndex, this.data.signupMode);
 
     this.setData({
       dayPickerIndex: idx,
-      signupDayIndex: newDayIndex,
+      signupDayIndex: newWindowIndex,
       hourPickerOptions: hourOptions,
       timePickerIndex: 0,
       signupHour: hourOptions[0].pdtHour
@@ -636,7 +656,6 @@ Page({
     var role = this.data.signupRole;
     var recurring = this.data.signupRecurring;
     var extras = this.data.signupExtras;
-    var weekDate = this.data.weekDate;
 
     if (mode === 'create' && pdtHour === null) {
       wx.showToast({ title: '创建车队需选择时段', icon: 'none' });
@@ -647,7 +666,9 @@ Page({
 
     try {
       var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
-      var selectedDayDate = this.data.weekDays[this.data.signupDayIndex].dayDate;
+      var selectedRollingDay = this.data.rollingDays[this.data.signupDayIndex];
+      var selectedDayDate = selectedRollingDay.dayDate;
+      var weekDate = selectedRollingDay.weekDate;
       var callData = {
         action: action,
         weekDate: weekDate,
@@ -678,10 +699,11 @@ Page({
         wx.showToast({ title: msg, icon: 'none' });
 
         if (recurring && displayHour !== null) {
+          var recurringDayOfWeek = selectedRollingDay.dayOfWeek;
           this.setData({
             isRecurring: true,
             recurringHour: displayHour,
-            recurringDay: this.data.signupDayIndex,
+            recurringDay: recurringDayOfWeek,
             recurringLocalDisplay: pdtToLocal(displayDayDate, displayHour).display
           });
         }
@@ -715,8 +737,10 @@ Page({
 
   handleLeave: async function () {
     if (this.data.actionLoading) return;
+    var myReg = this.data.myRegistration;
+    if (!myReg) return;
 
-    var content = '确定要退出本周报名吗？';
+    var content = '确定要退出报名吗？';
     if (this.data.isRecurring) {
       content += '\n每周自动报名也会一并取消';
     }
@@ -729,7 +753,7 @@ Page({
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'leave', weekDate: this.data.weekDate }
+        data: { action: 'leave', weekDate: myReg.weekDate }
       });
 
       if (res.result.success) {
@@ -749,14 +773,22 @@ Page({
 
   handleMove: async function (e) {
     var targetPdtHour = Number(e.currentTarget.dataset.hour);
-    var weekDate = this.data.weekDate;
     var nickname = this.data.nickname;
     var myReg = this.data.myRegistration;
-    if (this.data.actionLoading) return;
+    if (this.data.actionLoading || !myReg) return;
+
+    var rollingDays = this.data.rollingDays;
+    var selectedDay = this.data.selectedDay;
+    var targetDay = rollingDays[selectedDay];
+
+    // 只能在同一个 weekDate 内挪动
+    if (targetDay.weekDate !== myReg.weekDate) {
+      wx.showToast({ title: '不能跨周期挪动，请退出后重新报名', icon: 'none' });
+      return;
+    }
 
     var fromDisplay = pdtToLocal(myReg.dayDate, myReg.hour).display;
-    var moveDayDateForDisplay = this.data.weekDays[this.data.selectedDay].dayDate;
-    var toDisplay = pdtToLocal(moveDayDateForDisplay, targetPdtHour).display;
+    var toDisplay = pdtToLocal(targetDay.dayDate, targetPdtHour).display;
 
     var extra = '';
     if (this.data.isRecurring) {
@@ -772,10 +804,9 @@ Page({
     this.setData({ actionLoading: true });
 
     try {
-      var moveDayDate = this.data.weekDays[this.data.selectedDay].dayDate;
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'move', weekDate: weekDate, targetHour: targetPdtHour, targetDayDate: moveDayDate, nickname: nickname }
+        data: { action: 'move', weekDate: myReg.weekDate, targetHour: targetPdtHour, targetDayDate: targetDay.dayDate, nickname: nickname }
       });
 
       if (res.result.success) {
@@ -783,7 +814,7 @@ Page({
         if (this.data.isRecurring) {
           this.setData({
             recurringHour: targetPdtHour,
-            recurringDay: this.data.selectedDay,
+            recurringDay: targetDay.dayOfWeek,
             recurringLocalDisplay: toDisplay
           });
         }
@@ -810,12 +841,13 @@ Page({
 
     this.setData({ actionLoading: true });
 
+    var selectedWeekDate = this.data.rollingDays[this.data.selectedDay].weekDate;
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
         data: {
           action: 'removeProxy',
-          weekDate: this.data.weekDate,
+          weekDate: selectedWeekDate,
           slotId: slotId,
           memberOpenid: memberOpenid
         }
@@ -846,18 +878,19 @@ Page({
         return;
       }
       var hour = myReg.hour;
-      var day = myReg.dayIndex;
+      // 找到报名日的 dayOfWeek
+      var regDay = this.data.rollingDays.find(function(d) { return d.dayDate === myReg.dayDate; });
+      var dayOfWeek = regDay ? regDay.dayOfWeek : 0;
       try {
         await wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'setRecurring', hour: hour, day: day }
+          data: { action: 'setRecurring', hour: hour, day: dayOfWeek }
         });
-        var recDayDate = this.data.weekDays[day].dayDate;
         this.setData({
           isRecurring: true,
           recurringHour: hour,
-          recurringDay: day,
-          recurringLocalDisplay: pdtToLocal(recDayDate, hour).display
+          recurringDay: dayOfWeek,
+          recurringLocalDisplay: pdtToLocal(myReg.dayDate, hour).display
         });
         wx.showToast({ title: '已开启每周自动', icon: 'none' });
       } catch (err) {

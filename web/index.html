@@ -484,31 +484,32 @@ var state = {
   userId: '',
   nickname: '',
   recoveryCode: '',
-  weekDate: '',
   weekLabel: '',
   pdtLabel: '',
   timeSlots: [],
   slotsMap: {},
-  allSlots: [], // 全部天的 raw slots
-  weekDays: [], // [{dayIndex, dayDate, dayName, shortDate, totalCount}]
-  selectedDay: 0, // 当前选中的天 (0=周日)
-  myRegistration: null,
+  allSlots: [],
+  rollingDays: [],       // 8天滚动窗口
+  windowWeekDates: [],   // 窗口涉及的 weekDates
+  selectedDay: 0,        // windowIndex into rollingDays
+  myRegistration: null,  // 当前选中天 weekDate 的报名
+  myRegistrations: {},   // { weekDate: registration }
   isRecurring: false,
   recurringHour: null,
   recurringDay: null,
   recurringLocalDisplay: '',
   loading: true,
   actionLoading: false,
-  proxyList: [], // [{nickname, role}] 帮报名列表，报名时带上
-  expandedSlots: {}, // {pdtHour: true} 展开的时段
-  preferredRole: localStorage.getItem('yanyun_role') || '输出', // 记忆职业
-  // Signup modal state
-  signupMode: null, // 'quick' | 'create' | null
-  signupDay: null, // dayIndex in modal
+  proxyList: [],
+  expandedSlots: {},
+  preferredRole: localStorage.getItem('yanyun_role') || '输出',
+  signupMode: null,
+  signupDay: null,
   signupHour: null,
   signupRole: '输出',
   signupRecurring: false,
-  signupExtras: [] // [{ nickname, role }]
+  signupExtras: [],
+  selectedDayWindowOpen: false
 };
 
 // ===== 初始化 =====
@@ -537,15 +538,17 @@ async function init() {
     state.nickname = savedNick || '访客' + state.userId.slice(-4);
   }
 
-  state.weekDate = getCurrentSunday();
-  // 默认选中今天
-  var pdtNow = getPDTNow();
-  state.selectedDay = pdtNow.getDay(); // 0=周日, 1=周一, ...
+  state.rollingDays = getRollingWindowDays();
+  state.windowWeekDates = getWindowWeekDates();
+  state.selectedDay = 1; // today (index 1 in rolling window)
   buildTimeSlots();
   if (state.recurringHour != null && state.recurringDay != null) {
-    var recDayDate = state.weekDays[state.recurringDay].dayDate;
-    var recLocal = pdtToLocal(recDayDate, state.recurringHour);
-    state.recurringLocalDisplay = recLocal.display;
+    var recDay = state.rollingDays.find(function(d) { return d.dayOfWeek === state.recurringDay; });
+    if (recDay) {
+      state.recurringLocalDisplay = pdtToLocal(recDay.dayDate, state.recurringHour).display;
+    } else {
+      state.recurringLocalDisplay = '';
+    }
   } else {
     state.recurringLocalDisplay = '';
   }
@@ -590,6 +593,72 @@ function getCurrentSunday() {
   return fmtDate(result);
 }
 
+function getWeekDateForDay(dayDateStr) {
+  var pdtNow = getPDTNow();
+  var todayStr = fmtDate(pdtNow);
+  var p = dayDateStr.split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var dayOfWeek = d.getDay();
+  if (dayOfWeek === 0) {
+    if (dayDateStr === todayStr && pdtNow.getHours() < 14) {
+      d.setDate(d.getDate() - 7);
+      return fmtDate(d);
+    }
+    return dayDateStr;
+  } else {
+    d.setDate(d.getDate() - dayOfWeek);
+    return fmtDate(d);
+  }
+}
+
+function getRollingWindowDays() {
+  var pdtNow = getPDTNow();
+  var today = new Date(pdtNow.getFullYear(), pdtNow.getMonth(), pdtNow.getDate());
+  var days = [];
+  for (var i = -1; i <= 6; i++) {
+    var d = new Date(today);
+    d.setDate(today.getDate() + i);
+    var dayDate = fmtDate(d);
+    var dayOfWeek = d.getDay();
+    days.push({
+      windowIndex: i + 1,
+      dayDate: dayDate,
+      weekDate: getWeekDateForDay(dayDate),
+      dayOfWeek: dayOfWeek,
+      dayName: WEEKDAYS[dayOfWeek],
+      dayShort: WEEKDAYS[dayOfWeek].replace('周',''),
+      shortDate: (d.getMonth()+1) + '/' + d.getDate(),
+      totalCount: 0
+    });
+  }
+  return days;
+}
+
+function getWindowWeekDates() {
+  var days = getRollingWindowDays();
+  var seen = {};
+  var result = [];
+  for (var i = 0; i < days.length; i++) {
+    if (!seen[days[i].weekDate]) {
+      seen[days[i].weekDate] = true;
+      result.push(days[i].weekDate);
+    }
+  }
+  return result;
+}
+
+function isSignupWindowOpen(weekDateStr) {
+  var pdtNow = getPDTNow();
+  var p = weekDateStr.split('-');
+  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
+  var openTime = new Date(sunday);
+  openTime.setHours(14, 0, 0, 0);
+  var closeTime = new Date(sunday);
+  closeTime.setDate(closeTime.getDate() + 6);
+  closeTime.setHours(1, 0, 0, 0);
+  return pdtNow >= openTime && pdtNow < closeTime;
+}
+
 function fmt12h(hour) {
   if (hour === 0) return '12:00 AM';
   if (hour < 12) return hour + ':00 AM';
@@ -613,71 +682,58 @@ function fmtDate(d) {
 }
 function pad(n) { return String(n).padStart(2,'0'); }
 
-function getDaysOfWeek(weekDate) {
-  var p = weekDate.split('-');
-  var sun = new Date(+p[0], +p[1]-1, +p[2]);
-  var days = [];
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(sun);
-    d.setDate(sun.getDate() + i);
-    days.push({
-      dayIndex: i,
-      dayDate: fmtDate(d),
-      dayName: WEEKDAYS[i],
-      dayShort: WEEKDAYS[i].replace('周',''),
-      shortDate: (d.getMonth()+1) + '/' + d.getDate(),
-      totalCount: 0
-    });
-  }
-  return days;
-}
-
 function buildTimeSlots() {
-  state.weekDays = getDaysOfWeek(state.weekDate);
-  // timeSlots per selected day
-  var dayDate = state.weekDays[state.selectedDay].dayDate;
+  var rd = state.rollingDays;
+  var dayDate = rd[state.selectedDay].dayDate;
   state.timeSlots = SLOT_HOURS.map(function(h) {
     var l = pdtToLocal(dayDate, h);
     return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
   });
-  var f = state.weekDays[0], la = state.weekDays[6];
+  var f = rd[0], la = rd[rd.length - 1];
   state.weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-  state.pdtLabel = '美西每日 14:00-22:00 · 周日 2PM 刷新';
+  state.pdtLabel = '滚动8天 · 每周日2PM开放报名 · 周六1AM截止';
+  state.selectedDayWindowOpen = isSignupWindowOpen(rd[state.selectedDay].weekDate);
 }
 
 // ===== 数据加载 =====
 async function loadSlots() {
   try {
-    var res = await callFunction('api', { action: 'getSlots', weekDate: state.weekDate });
+    var res = await callFunction('api', { action: 'getSlots', weekDates: state.windowWeekDates });
     if (!res.success) return;
-    // 向后兼容：补 dayDate
     res.slots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
     state.allSlots = res.slots;
 
-    // 计算每天总人数
+    // 计算每天总人数 + 每个 weekDate 的报名
     var dayCounts = {};
-    state.myRegistration = null;
+    state.myRegistrations = {};
     res.slots.forEach(function(slot) {
       if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
       dayCounts[slot.dayDate] += slot.count;
-      // 找到我的报名（跨所有天）
       if (slot.members.some(function(m) { return m.openid === state.userId; })) {
-        var dayIdx = state.weekDays.findIndex(function(wd) { return wd.dayDate === slot.dayDate; });
-        state.myRegistration = {
+        var winIdx = state.rollingDays.findIndex(function(rd) { return rd.dayDate === slot.dayDate; });
+        state.myRegistrations[slot.weekDate] = {
           hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
-          dayDate: slot.dayDate, dayIndex: dayIdx >= 0 ? dayIdx : 0,
+          dayDate: slot.dayDate, weekDate: slot.weekDate,
+          windowIndex: winIdx >= 0 ? winIdx : -1,
           localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
         };
       }
     });
-    state.weekDays.forEach(function(wd) { wd.totalCount = dayCounts[wd.dayDate] || 0; });
+    state.rollingDays.forEach(function(rd) { rd.totalCount = dayCounts[rd.dayDate] || 0; });
+
+    // 当前选中天的 weekDate 对应的报名
+    var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
+    state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
+    state.selectedDayWindowOpen = isSignupWindowOpen(selectedWeekDate);
 
     rebuildSlotsMapForDay();
   } catch (e) { console.error('loadSlots', e); }
 }
 
 function rebuildSlotsMapForDay() {
-  var dayDate = state.weekDays[state.selectedDay].dayDate;
+  var day = state.rollingDays[state.selectedDay];
+  var dayDate = day.dayDate;
+  var selectedWeekDate = day.weekDate;
   var slotsMap = {};
   state.allSlots.forEach(function(slot) {
     if (slot.dayDate !== dayDate) return;
@@ -688,12 +744,13 @@ function rebuildSlotsMapForDay() {
   });
   for (var k in slotsMap) slotsMap[k].cars.sort(function(a,b){ return a.carIndex - b.carIndex; });
   state.slotsMap = slotsMap;
-  // Rebuild timeSlots display for the selected day
-  var dd = dayDate;
   state.timeSlots = SLOT_HOURS.map(function(h) {
-    var l = pdtToLocal(dd, h);
+    var l = pdtToLocal(dayDate, h);
     return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
   });
+  // 更新当前选中天的 myRegistration 和窗口状态
+  state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
+  state.selectedDayWindowOpen = isSignupWindowOpen(selectedWeekDate);
 }
 
 // ===== Signup Modal =====
@@ -728,23 +785,25 @@ function renderSignupModal() {
   // Day select
   var daySelectEl = document.getElementById('signupDaySelect');
   var dayHtml = '';
-  state.weekDays.forEach(function(wd) {
-    var isPast = wd.dayDate < todayStr;
-    var sel = wd.dayIndex === state.signupDay ? ' selected' : '';
-    var dis = isPast ? ' disabled' : '';
-    // 计算该天总人数
+  state.rollingDays.forEach(function(rd) {
+    var isPast = rd.dayDate < todayStr;
+    var windowOpen = isSignupWindowOpen(rd.weekDate);
+    var sel = rd.windowIndex === state.signupDay ? ' selected' : '';
+    var dis = (isPast || !windowOpen) ? ' disabled' : '';
     var dayCount = 0;
-    state.allSlots.forEach(function(s) { if (s.dayDate === wd.dayDate) dayCount += s.count; });
-    var label = wd.dayName + ' ' + wd.shortDate + (dayCount > 0 ? ' (' + dayCount + '人)' : '');
+    state.allSlots.forEach(function(s) { if (s.dayDate === rd.dayDate) dayCount += s.count; });
+    var label = rd.dayName + ' ' + rd.shortDate + (dayCount > 0 ? ' (' + dayCount + '人)' : '');
     if (isPast) label += ' (已过)';
-    dayHtml += '<option value="' + wd.dayIndex + '"' + sel + dis + '>' + esc(label) + '</option>';
+    else if (!windowOpen) label += ' (未开放)';
+    dayHtml += '<option value="' + rd.windowIndex + '"' + sel + dis + '>' + esc(label) + '</option>';
   });
   daySelectEl.innerHTML = dayHtml;
   daySelectEl.value = String(state.signupDay);
 
   // Hour select — based on selected day
-  var selectedDayDate = state.weekDays[state.signupDay].dayDate;
-  var isSunday = state.signupDay === 0;
+  var selectedRollingDay = state.rollingDays[state.signupDay];
+  var selectedDayDate = selectedRollingDay.dayDate;
+  var isSunday = selectedRollingDay.dayOfWeek === 0;
   var isToday = selectedDayDate === todayStr;
   // 该天的 slots 数据
   var daySlotsMap = {};
@@ -814,7 +873,7 @@ function renderProxyTags() {
 window._signupDayChange = function() {
   var dayVal = document.getElementById('signupDaySelect').value;
   state.signupDay = parseInt(dayVal, 10);
-  state.signupHour = null; // reset hour when day changes
+  state.signupHour = null;
   renderSignupModal();
 };
 
@@ -861,10 +920,12 @@ window._signupSubmit = async function() {
 
   try {
     var action = mode === 'quick' ? 'quickJoin' : 'createTeam';
-    var selectedDayDate = state.weekDays[state.signupDay].dayDate;
+    var selectedRollingDay = state.rollingDays[state.signupDay];
+    var selectedDayDate = selectedRollingDay.dayDate;
+    var weekDate = selectedRollingDay.weekDate;
     var params = {
       action: action,
-      weekDate: state.weekDate,
+      weekDate: weekDate,
       dayDate: selectedDayDate,
       nickname: state.nickname,
       role: role,
@@ -881,7 +942,7 @@ window._signupSubmit = async function() {
       if (recurring && displayHour != null) {
         state.isRecurring = true;
         state.recurringHour = displayHour;
-        state.recurringDay = state.signupDay;
+        state.recurringDay = selectedRollingDay.dayOfWeek;
         state.recurringLocalDisplay = pdtToLocal(displayDayDate, displayHour).display;
       }
       var msg = mode === 'quick' ? '已加入' : '已创建车队';
@@ -916,12 +977,13 @@ function handleCreateTeam() {
 }
 
 async function handleLeave() {
-  if (state.actionLoading) return;
-  var msg = '确定要退出本周报名吗？';
+  if (state.actionLoading || !state.myRegistration) return;
+  var msg = '确定要退出报名吗？';
+  if (state.isRecurring) msg += '\n每周自动报名也会一并取消';
   if (!await showModal('确认退出', msg, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var res = await callFunction('api', { action: 'leave', weekDate: state.weekDate });
+    var res = await callFunction('api', { action: 'leave', weekDate: state.myRegistration.weekDate });
     if (res.success) { showToast('已退出报名'); await loadSlots(); }
     else { showToast(res.message); }
   } catch (e) { showToast('操作失败'); }
@@ -929,17 +991,22 @@ async function handleLeave() {
 }
 
 async function handleMove(pdtHour) {
-  if (state.actionLoading) return;
+  if (state.actionLoading || !state.myRegistration) return;
+  var targetDay = state.rollingDays[state.selectedDay];
+  // 只能在同一个 weekDate 内挪动
+  if (targetDay.weekDate !== state.myRegistration.weekDate) {
+    showToast('不能跨周期挪动，请退出后重新报名');
+    return;
+  }
   var from = state.myRegistration.localDisplay;
-  var moveDayDate = state.weekDays[state.selectedDay].dayDate;
-  var to = pdtToLocal(moveDayDate, pdtHour).display;
+  var to = pdtToLocal(targetDay.dayDate, pdtHour).display;
   var extra = state.isRecurring ? '\n每周自动报名也会跟着改' : '';
   if (!await showModal('确认挪动', '从 ' + from + ' 挪到 ' + to + '？' + extra, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var res = await callFunction('api', { action: 'move', weekDate: state.weekDate, targetHour: pdtHour, targetDayDate: moveDayDate, nickname: state.nickname });
+    var res = await callFunction('api', { action: 'move', weekDate: state.myRegistration.weekDate, targetHour: pdtHour, targetDayDate: targetDay.dayDate, nickname: state.nickname });
     if (res.success) {
-      if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringDay = state.selectedDay; state.recurringLocalDisplay = to; }
+      if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringDay = targetDay.dayOfWeek; state.recurringLocalDisplay = to; }
       showToast('已挪到 ' + to); await loadSlots();
     } else { showToast(res.message); }
   } catch (e) { showToast('操作失败'); }
@@ -950,10 +1017,11 @@ async function handleRemoveProxy(slotId, memberNickname) {
   if (state.actionLoading) return;
   if (!await showModal('移除代报', '确定移除 ' + memberNickname + ' 吗？', '确定', '取消')) return;
   state.actionLoading = true; render();
+  var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
   try {
     var res = await callFunction('api', {
       action: 'removeProxy',
-      weekDate: state.weekDate,
+      weekDate: selectedWeekDate,
       slotId: slotId,
       nickname: memberNickname
     });
@@ -980,14 +1048,17 @@ async function toggleRecurring() {
   var newVal = !state.isRecurring;
   if (newVal && !state.myRegistration) { showToast('请先报名一个时段'); return; }
   var hour = newVal ? state.myRegistration.hour : null;
-  var day = newVal ? state.myRegistration.dayIndex : null;
+  var dayOfWeek = null;
+  if (newVal && state.myRegistration) {
+    var regDay = state.rollingDays.find(function(d) { return d.dayDate === state.myRegistration.dayDate; });
+    dayOfWeek = regDay ? regDay.dayOfWeek : 0;
+  }
   try {
-    await callFunction('api', { action: 'setRecurring', hour: hour, day: day });
+    await callFunction('api', { action: 'setRecurring', hour: hour, day: dayOfWeek });
     state.isRecurring = newVal;
     state.recurringHour = hour;
-    state.recurringDay = day;
-    var recDayDate = (day != null && state.weekDays[day]) ? state.weekDays[day].dayDate : state.weekDate;
-    state.recurringLocalDisplay = hour != null ? pdtToLocal(recDayDate, hour).display : '';
+    state.recurringDay = dayOfWeek;
+    state.recurringLocalDisplay = (hour != null && state.myRegistration) ? pdtToLocal(state.myRegistration.dayDate, hour).display : '';
     showToast(newVal ? '已开启每周自动' : '已取消每周自动');
     render();
   } catch (e) { showToast('操作失败'); }
@@ -1024,7 +1095,7 @@ async function handleRecover() {
 function openGoogleCalendar() {
   var reg = state.myRegistration;
   if (!reg) return;
-  var pp = state.weekDate.split('-');
+  var pp = reg.dayDate.split('-');
   var y = +pp[0], m = +pp[1], d = +pp[2];
   var utcStart = new Date(Date.UTC(y, m-1, d, reg.hour - PDT_OFFSET, 0, 0));
   var utcEnd = new Date(utcStart.getTime() + 3600000);
@@ -1084,6 +1155,8 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 // ===== 智能推荐 =====
 function getRecommendation() {
   var s = state;
+  if (!s.selectedDayWindowOpen) return null;
+  var dayDate = s.rollingDays[s.selectedDay].dayDate;
   var best = null;
   for (var h in s.slotsMap) {
     var data = s.slotsMap[h];
@@ -1106,7 +1179,7 @@ function getRecommendation() {
           neededRole: need,
           neededCount: needCount,
           carCount: car.count,
-          display: pdtToLocal(s.weekDate, +h).display
+          display: pdtToLocal(dayDate, +h).display
         };
       }
     });
@@ -1138,7 +1211,7 @@ function render() {
   html += '<span class="role-dot output ' + (s.preferredRole === '输出' ? 'active' : '') + '" onclick="window._setPreferredRole(\'输出\')">🔵 输出</span>';
   html += '<span class="role-dot linlin ' + (s.preferredRole === '霖霖' ? 'active' : '') + '" onclick="window._setPreferredRole(\'霖霖\')">🟢 霖霖</span>';
   html += '</div></div>';
-  html += '<div class="header-rules">每周限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>';
+  html += '<div class="header-rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>';
   // 恢复码（精简显示）
   html += '<div class="recovery-row">';
   if (s.recoveryCode) {
@@ -1176,12 +1249,15 @@ function render() {
     html += '</div></div>';
   }
 
-  // ===== 入口按钮（未报名时）=====
-  if (!s.myRegistration && !s.actionLoading) {
+  // ===== 入口按钮（未报名且窗口开放时）=====
+  if (!s.myRegistration && !s.actionLoading && s.selectedDayWindowOpen) {
     html += '<div class="entry-buttons">';
     html += '<button class="entry-btn entry-btn-quick" onclick="window._quickJoin()">⚡ 快速加入</button>';
     html += '<button class="entry-btn entry-btn-create" onclick="window._createTeam()">🚗 创建车队</button>';
     html += '</div>';
+  }
+  if (!s.myRegistration && !s.actionLoading && !s.selectedDayWindowOpen) {
+    html += '<div style="text-align:center;font-size:13px;color:#6e7681;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid #21262d">该周期报名尚未开放（周日 2PM PDT 开放）</div>';
   }
 
   // ===== 每周自动 =====
@@ -1192,20 +1268,19 @@ function render() {
   if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
   html += '</div>';
 
-  // ===== 日期 Tab 栏 =====
-  var myRegDay = s.myRegistration ? s.myRegistration.dayIndex : -1;
-  var todayDayIndex = getPDTNow().getDay();
-  html += '<div class="day-tabs">';
-  s.weekDays.forEach(function(wd) {
-    var isActive = wd.dayIndex === s.selectedDay;
-    var isMyReg = wd.dayIndex === myRegDay;
-    var isDayPast = wd.dayDate < pdtTodayStr;
+  // ===== 日期 Tab 栏（滚动8天）=====
+  html += '<div class="day-tabs" style="overflow-x:auto;white-space:nowrap;display:flex;gap:3px;margin-bottom:10px">';
+  s.rollingDays.forEach(function(rd) {
+    var isActive = rd.windowIndex === s.selectedDay;
+    var myRegForWeek = s.myRegistrations[rd.weekDate];
+    var isMyReg = myRegForWeek && myRegForWeek.dayDate === rd.dayDate;
+    var isDayPast = rd.dayDate < pdtTodayStr;
     var cls = 'day-tab' + (isActive ? ' active' : '') + (isMyReg && !isActive ? ' has-reg' : '') + (isDayPast ? ' past-day' : '');
-    var countColor = wd.totalCount === 0 ? '#484f58' : wd.totalCount >= 20 ? '#f0b429' : '#3fb950';
-    html += '<div class="' + cls + '" onclick="window._selectDay(' + wd.dayIndex + ')">';
-    html += '<span class="day-tab-name">' + esc(wd.dayShort) + '</span>';
-    html += '<span class="day-tab-date">' + esc(wd.shortDate) + '</span>';
-    html += '<span class="day-tab-count" style="color:' + countColor + '">' + (wd.totalCount > 0 ? wd.totalCount + '人' : '-') + '</span>';
+    var countColor = rd.totalCount === 0 ? '#484f58' : rd.totalCount >= 20 ? '#f0b429' : '#3fb950';
+    html += '<div class="' + cls + '" style="min-width:52px;flex-shrink:0" onclick="window._selectDay(' + rd.windowIndex + ')">';
+    html += '<span class="day-tab-name">' + esc(rd.dayShort) + '</span>';
+    html += '<span class="day-tab-date">' + esc(rd.shortDate) + '</span>';
+    html += '<span class="day-tab-count" style="color:' + countColor + '">' + (rd.totalCount > 0 ? rd.totalCount + '人' : '-') + '</span>';
     html += '</div>';
   });
   html += '</div>';
@@ -1241,7 +1316,8 @@ function render() {
   }
 
   // ===== 紧凑时段列表 =====
-  var selectedDayDate = s.weekDays[s.selectedDay].dayDate;
+  var selectedRD = s.rollingDays[s.selectedDay];
+  var selectedDayDate = selectedRD.dayDate;
   var isSelectedDayPast = selectedDayDate < pdtTodayStr;
   var isSelectedDayToday = selectedDayDate === pdtTodayStr;
 
@@ -1250,7 +1326,7 @@ function render() {
     var data = s.slotsMap[slot.pdtHour];
     var count = data ? data.totalCount : 0;
     var isExpanded = !!s.expandedSlots[slot.pdtHour];
-    var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour && s.myRegistration.dayIndex === s.selectedDay;
+    var isCurrent = s.myRegistration && s.myRegistration.hour === slot.pdtHour && s.myRegistration.dayDate === selectedDayDate;
     var allFull = data && data.cars.length > 0 && data.cars.every(function(c) { return c.full; });
     var isHot = count >= 20;
     var isPast = isSelectedDayPast || (isSelectedDayToday && slot.pdtHour <= pdtCurrentHour);
@@ -1267,14 +1343,14 @@ function render() {
     if (isCurrent) html += '<span class="current-badge" style="padding:2px 8px;font-size:11px">当前</span>';
     html += '</div>';
 
-    // Action button — 不显示已过时段的加入/挪动按钮
-    if (!isPast && !s.myRegistration && !s.actionLoading) {
+    // Action button — 已过时段或窗口未开放时不显示
+    if (!isPast && s.selectedDayWindowOpen && !s.myRegistration && !s.actionLoading) {
       if (allFull) {
         html += '<button class="action-btn create-btn" onclick="event.stopPropagation();window._createTeamAt(' + slot.pdtHour + ')">开新车</button>';
       } else {
         html += '<button class="action-btn join-btn" onclick="event.stopPropagation();window._joinSlot(' + slot.pdtHour + ')">加入</button>';
       }
-    } else if (!isPast && s.myRegistration && !isCurrent && !s.actionLoading) {
+    } else if (!isPast && s.selectedDayWindowOpen && s.myRegistration && !isCurrent && !s.actionLoading) {
       html += '<button class="action-btn move-btn" onclick="event.stopPropagation();window._move(' + slot.pdtHour + ')">挪到这里</button>';
     }
     html += '</div>';
@@ -1365,8 +1441,8 @@ window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
 
 // 日期切换
-window._selectDay = function(dayIndex) {
-  state.selectedDay = dayIndex;
+window._selectDay = function(windowIndex) {
+  state.selectedDay = windowIndex;
   rebuildSlotsMapForDay();
   render();
 };

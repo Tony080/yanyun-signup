@@ -6,32 +6,44 @@ const _ = db.command;
 const PDT_OFFSET = -7;
 
 /**
- * 每周自动报名
- * 每6小时触发一次，函数自行判断是否需要执行
- * 当 weekDate 翻新后（PDT 周日 23:00+ 或周一起），为所有设置了 recurringHour 的用户自动报名
+ * 每周自动报名（支持滚动窗口）
+ * 每6小时触发一次，为当前周和下一周的 recurring 用户自动报名
+ * 这样滚动窗口中下一周的日期也能显示 recurring 用户的报名
  */
 exports.main = async (event, context) => {
   const now = new Date();
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
   const pdtNow = new Date(utcMs + PDT_OFFSET * 3600000);
-  const weekDate = getCurrentSunday(pdtNow);
+  const currentWeekDate = getCurrentSunday(pdtNow);
+  const nextWeekDate = getNextSunday(currentWeekDate);
 
-  console.log('[自动报名] 检查 weekDate=' + weekDate);
+  console.log('[自动报名] 检查 currentWeek=' + currentWeekDate + ' nextWeek=' + nextWeekDate);
 
-  // 检查是否已为本周执行过
+  // 处理当前周和下一周
+  var totalRegistered = 0;
+
+  totalRegistered += await processWeek(currentWeekDate, pdtNow);
+  totalRegistered += await processWeek(nextWeekDate, pdtNow);
+
+  console.log('[自动报名完成] 共报名 ' + totalRegistered + ' 人');
+  return { registered: totalRegistered, currentWeekDate: currentWeekDate, nextWeekDate: nextWeekDate };
+};
+
+async function processWeek(weekDate, pdtNow) {
+  // 检查是否已为该周执行过
   var metaRes;
   try {
     metaRes = await db.collection('meta')
-      .where({ type: 'autoRegister' })
+      .where({ type: 'autoRegister', weekDate: weekDate })
       .limit(1)
       .get();
   } catch (e) {
     metaRes = { data: [] };
   }
 
-  if (metaRes.data.length > 0 && metaRes.data[0].lastWeekDate === weekDate) {
-    console.log('[自动报名] 本周已执行过，跳过');
-    return { skipped: true, reason: 'already done for ' + weekDate };
+  if (metaRes.data.length > 0) {
+    console.log('[自动报名] ' + weekDate + ' 已执行过，跳过');
+    return 0;
   }
 
   // 查找所有开启了每周自动的用户
@@ -42,28 +54,28 @@ exports.main = async (event, context) => {
 
   if (usersRes.data.length === 0) {
     console.log('[自动报名] 无自动报名用户');
-    await updateMeta(metaRes, weekDate);
-    return { registered: 0 };
+    await saveMeta(weekDate);
+    return 0;
   }
 
-  console.log('[自动报名] 找到 ' + usersRes.data.length + ' 个自动报名用户');
+  console.log('[自动报名] ' + weekDate + ': 找到 ' + usersRes.data.length + ' 个自动报名用户');
 
   var registered = 0;
 
   for (var i = 0; i < usersRes.data.length; i++) {
     var user = usersRes.data[i];
     var hour = user.recurringHour;
-    var dayIndex = user.recurringDay || 0; // 默认周日
+    var dayIndex = user.recurringDay || 0;
     var dayDate = getDayDate(weekDate, dayIndex);
 
-    // 检查是否已在本周报名
+    // 检查是否已在该周报名
     var existCheck = await db.collection('slots')
       .where({ weekDate: weekDate, members: _.elemMatch({ openid: user.openid }) })
       .limit(1)
       .get();
 
     if (existCheck.data.length > 0) {
-      console.log('[自动报名] ' + user.nickname + ' 已手动报名，跳过');
+      console.log('[自动报名] ' + user.nickname + ' 已在 ' + weekDate + ' 报名，跳过');
       continue;
     }
 
@@ -114,26 +126,20 @@ exports.main = async (event, context) => {
     }
 
     registered++;
-    console.log('[自动报名] ' + user.nickname + ' → day' + dayIndex + ' ' + hour + ':00 PDT');
+    console.log('[自动报名] ' + user.nickname + ' → ' + weekDate + ' day' + dayIndex + ' ' + hour + ':00 PDT');
   }
 
-  // 标记本周已完成
-  await updateMeta(metaRes, weekDate);
+  // 标记该周已完成
+  await saveMeta(weekDate);
 
-  console.log('[自动报名完成] 本周报名 ' + registered + ' 人');
-  return { registered: registered, weekDate: weekDate };
-};
+  console.log('[自动报名] ' + weekDate + ' 完成，报名 ' + registered + ' 人');
+  return registered;
+}
 
-async function updateMeta(metaRes, weekDate) {
-  if (metaRes.data.length > 0) {
-    await db.collection('meta').doc(metaRes.data[0]._id).update({
-      data: { lastWeekDate: weekDate, updatedAt: db.serverDate() }
-    });
-  } else {
-    await db.collection('meta').add({
-      data: { type: 'autoRegister', lastWeekDate: weekDate, updatedAt: db.serverDate() }
-    });
-  }
+async function saveMeta(weekDate) {
+  await db.collection('meta').add({
+    data: { type: 'autoRegister', weekDate: weekDate, processedAt: db.serverDate() }
+  });
 }
 
 function getCurrentSunday(pdtNow) {
@@ -145,6 +151,13 @@ function getCurrentSunday(pdtNow) {
     result.setDate(result.getDate() - day);
   }
   return formatDate(result);
+}
+
+function getNextSunday(weekDateStr) {
+  var p = weekDateStr.split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() + 7);
+  return formatDate(d);
 }
 
 function formatDate(date) {

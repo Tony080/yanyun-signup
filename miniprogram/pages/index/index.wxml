@@ -21,7 +21,7 @@
               bindtap="setPreferredRole" data-role="霖霖">🟢 霖霖</view>
       </view>
     </view>
-    <view class="header-rules">每周限报一个时段 · 10人满开新车 · 时间已转为本地时区</view>
+    <view class="header-rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</view>
   </view>
 
   <!-- 我的状态卡片（增强版） -->
@@ -40,14 +40,18 @@
     </view>
   </view>
 
-  <!-- 入口按钮（未报名时显示） -->
-  <view class="entry-buttons" wx:if="{{!myRegistration && !loading}}">
+  <!-- 入口按钮（未报名且窗口开放时显示） -->
+  <view class="entry-buttons" wx:if="{{!myRegistration && !loading && selectedDayWindowOpen}}">
     <view class="entry-btn quick-join-btn" bindtap="openSignupModal" data-mode="quick">
       ⚡ 快速加入
     </view>
     <view class="entry-btn create-team-btn" bindtap="openSignupModal" data-mode="create">
       🚗 创建车队
     </view>
+  </view>
+  <!-- 报名窗口未开放提示 -->
+  <view class="window-closed-hint" wx:if="{{!myRegistration && !loading && !selectedDayWindowOpen}}">
+    <text>该周期报名尚未开放（周日 2PM PDT 开放）</text>
   </view>
 
   <!-- 每周自动 -->
@@ -62,16 +66,18 @@
     <text class="recurring-hint-off" wx:if="{{!isRecurring}}">关闭</text>
   </view>
 
-  <!-- 日期选择 Tab Bar -->
-  <view class="day-tabs" wx:if="{{!loading}}">
-    <view class="day-tab {{item.dayIndex === selectedDay ? 'active' : ''}} {{myRegistration && myRegistration.dayIndex === item.dayIndex && item.dayIndex !== selectedDay ? 'has-reg' : ''}} {{item.dayDate < pdtTodayStr ? 'past-day' : ''}}"
-          wx:for="{{weekDays}}" wx:key="dayIndex"
-          bindtap="selectDay" data-day="{{item.dayIndex}}">
-      <text class="day-tab-name">{{item.dayShort}}</text>
-      <text class="day-tab-date">{{item.shortDate}}</text>
-      <text class="day-tab-count" style="color: {{item.totalCount >= 20 ? '#f0b429' : item.totalCount > 0 ? '#3fb950' : '#484f58'}}">{{item.totalCount > 0 ? item.totalCount + '人' : '-'}}</text>
+  <!-- 日期选择 Tab Bar (滚动8天) -->
+  <scroll-view class="day-tabs-scroll" scroll-x wx:if="{{!loading}}">
+    <view class="day-tabs">
+      <view class="day-tab {{item.windowIndex === selectedDay ? 'active' : ''}} {{myRegistrations[item.weekDate] && myRegistrations[item.weekDate].dayDate === item.dayDate && item.windowIndex !== selectedDay ? 'has-reg' : ''}} {{item.dayDate < pdtTodayStr ? 'past-day' : ''}}"
+            wx:for="{{rollingDays}}" wx:key="windowIndex"
+            bindtap="selectDay" data-day="{{item.windowIndex}}">
+        <text class="day-tab-name">{{item.dayShort}}</text>
+        <text class="day-tab-date">{{item.shortDate}}</text>
+        <text class="day-tab-count" style="color: {{item.totalCount >= 20 ? '#f0b429' : item.totalCount > 0 ? '#3fb950' : '#484f58'}}">{{item.totalCount > 0 ? item.totalCount + '人' : '-'}}</text>
+      </view>
     </view>
-  </view>
+  </scroll-view>
 
   <!-- 时段热度 Heatmap -->
   <view class="section-title" wx:if="{{!loading}}">📊 时段热度</view>
@@ -110,31 +116,31 @@
   <view class="time-slots" wx:if="{{!loading}}">
     <block wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
       <!-- Compact slot row -->
-      <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}} {{slotMeta[slot.pdtHour].isPast ? 'slot-row-past' : ''}}"
+      <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}} {{slotMeta[slot.pdtHour].isPast ? 'slot-row-past' : ''}}"
             bindtap="toggleSlot" data-hour="{{slot.pdtHour}}">
         <view class="slot-row-left">
           <text class="slot-row-chevron">▸</text>
           <text class="slot-row-time">{{slot.display}}</text>
           <text class="slot-row-count" wx:if="{{slotsMap[slot.pdtHour]}}">{{slotsMap[slot.pdtHour].totalCount}}人</text>
           <text class="slot-row-hot-tag" wx:if="{{slotMeta[slot.pdtHour].isHot}}">HOT</text>
-          <text class="slot-row-past-tag" wx:if="{{slotMeta[slot.pdtHour].isPast && !(myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay)}}">已过</text>
-          <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay}}">当前</text>
+          <text class="slot-row-past-tag" wx:if="{{slotMeta[slot.pdtHour].isPast && !(myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate)}}">已过</text>
+          <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate}}">当前</text>
         </view>
         <view class="slot-row-right" catchtap="preventBubble">
-          <!-- Join / Create / Move buttons — 已过时段不显示 -->
+          <!-- Join / Create / Move buttons — 已过时段或窗口未开放时不显示 -->
           <view class="action-btn join-btn" catchtap="handleSlotJoin"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
             加入
           </view>
           <view class="action-btn create-btn" catchtap="createTeamAt"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && !myRegistration && !actionLoading && slotMeta[slot.pdtHour].allFull}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && !myRegistration && !actionLoading && slotMeta[slot.pdtHour].allFull}}">
             开新车
           </view>
           <view class="action-btn move-btn" catchtap="handleMove"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayIndex === selectedDay) && !actionLoading}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate) && !actionLoading}}">
             挪到这里
           </view>
         </view>

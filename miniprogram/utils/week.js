@@ -111,6 +111,99 @@ function fmt12h(hour) {
   return (hour - 12) + ':00 PM';
 }
 
+/**
+ * 给定日期字符串，返回其所属 weekDate（PDT 周日）
+ * 规则：周日 14:00 PDT 为周期分界
+ * - 未来的周日：属于自己的周期
+ * - 今天是周日且 <14:00：属于上一周
+ * - 今天是周日且 >=14:00：属于本周
+ * - 周一~周六：回退到上个周日
+ */
+function getWeekDateForDay(dayDateStr) {
+  var pdtNow = getPDTNow();
+  var todayStr = formatDate(pdtNow);
+  var p = dayDateStr.split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  var dayOfWeek = d.getDay();
+
+  if (dayOfWeek === 0) {
+    if (dayDateStr === todayStr && pdtNow.getHours() < 14) {
+      d.setDate(d.getDate() - 7);
+      return formatDate(d);
+    }
+    return dayDateStr;
+  } else {
+    d.setDate(d.getDate() - dayOfWeek);
+    return formatDate(d);
+  }
+}
+
+/**
+ * 获取滚动窗口 8 天（today-1 到 today+6）
+ * 每天带有所属 weekDate
+ */
+function getRollingWindowDays() {
+  var pdtNow = getPDTNow();
+  var today = new Date(pdtNow.getFullYear(), pdtNow.getMonth(), pdtNow.getDate());
+  var days = [];
+
+  for (var i = -1; i <= 6; i++) {
+    var d = new Date(today);
+    d.setDate(today.getDate() + i);
+    var dayDate = formatDate(d);
+    var dayOfWeek = d.getDay();
+    var wDate = getWeekDateForDay(dayDate);
+
+    days.push({
+      windowIndex: i + 1,
+      dayDate: dayDate,
+      weekDate: wDate,
+      dayOfWeek: dayOfWeek,
+      dayName: WEEKDAY_NAMES[dayOfWeek],
+      dayShort: WEEKDAY_NAMES[dayOfWeek].replace('周', ''),
+      shortDate: (d.getMonth() + 1) + '/' + d.getDate()
+    });
+  }
+
+  return days;
+}
+
+/**
+ * 获取滚动窗口涉及的所有不重复 weekDates
+ */
+function getWindowWeekDates() {
+  var days = getRollingWindowDays();
+  var seen = {};
+  var result = [];
+  for (var i = 0; i < days.length; i++) {
+    if (!seen[days[i].weekDate]) {
+      seen[days[i].weekDate] = true;
+      result.push(days[i].weekDate);
+    }
+  }
+  return result;
+}
+
+/**
+ * 检查某个 weekDate 的报名窗口是否开放
+ * 开放条件: 当前 PDT >= weekDate 周日 14:00
+ * 关闭条件: 当前 PDT >= weekDate+6天(周六) 01:00
+ */
+function isSignupWindowOpen(weekDateStr) {
+  var pdtNow = getPDTNow();
+  var p = weekDateStr.split('-');
+  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
+
+  var openTime = new Date(sunday);
+  openTime.setHours(14, 0, 0, 0);
+
+  var closeTime = new Date(sunday);
+  closeTime.setDate(closeTime.getDate() + 6);
+  closeTime.setHours(1, 0, 0, 0);
+
+  return pdtNow >= openTime && pdtNow < closeTime;
+}
+
 module.exports = {
   PDT_OFFSET,
   SLOT_HOURS_PDT,
@@ -118,6 +211,10 @@ module.exports = {
   getPDTNow,
   getCurrentSunday,
   getDaysOfWeek,
+  getRollingWindowDays,
+  getWindowWeekDates,
+  getWeekDateForDay,
+  isSignupWindowOpen,
   SUNDAY_DISABLED_HOURS,
   pdtToLocal,
   formatDate

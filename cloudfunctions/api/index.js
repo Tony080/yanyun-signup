@@ -52,15 +52,27 @@ exports.main = async (event) => {
 
 // ===== 获取报名数据 =====
 
-async function getSlots(openid, { weekDate, dayDate }) {
-  var query = { weekDate: weekDate };
+async function getSlots(openid, { weekDate, weekDates, dayDate }) {
+  // 支持多 weekDate 查询（滚动窗口）
+  var targetWeekDates = weekDates || (weekDate ? [weekDate] : []);
+  if (targetWeekDates.length === 0) {
+    return { success: true, slots: [] };
+  }
+
+  var query;
+  if (targetWeekDates.length === 1) {
+    query = { weekDate: targetWeekDates[0] };
+  } else {
+    query = { weekDate: _.in(targetWeekDates) };
+  }
   if (dayDate) query.dayDate = dayDate;
+
   var res = await db.collection('slots')
     .where(query)
     .orderBy('dayDate', 'asc')
     .orderBy('hour', 'asc')
     .orderBy('carIndex', 'asc')
-    .limit(500)
+    .limit(1000)
     .get();
   // 向后兼容：旧数据无 dayDate 的补上 weekDate
   res.data.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
@@ -78,6 +90,11 @@ async function join(openid, params) {
 async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers }) {
   role = role || '输出';
   dayDate = dayDate || weekDate; // 向后兼容
+
+  // 检查报名窗口是否开放（周日 14:00 ~ 周六 01:00 PDT）
+  if (!isSignupWindowOpen(weekDate)) {
+    return { success: false, message: '该周期的报名窗口尚未开放或已关闭' };
+  }
 
   // 检查本周是否已报名（跨所有天）
   var existing = await db.collection('slots')
@@ -158,6 +175,11 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
 async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers }) {
   role = role || '输出';
   dayDate = dayDate || weekDate;
+
+  // 检查报名窗口是否开放（周日 14:00 ~ 周六 01:00 PDT）
+  if (!isSignupWindowOpen(weekDate)) {
+    return { success: false, message: '该周期的报名窗口尚未开放或已关闭' };
+  }
 
   // 拒绝创建已过日期或时段的车队
   var pdtNow = getPDTNow();
@@ -241,6 +263,11 @@ async function leave(openid, { weekDate }) {
 
 async function move(openid, { weekDate, targetHour, targetDayDate, nickname, role }) {
   targetDayDate = targetDayDate || weekDate;
+
+  // 检查报名窗口是否开放
+  if (!isSignupWindowOpen(weekDate)) {
+    return { success: false, message: '该周期的报名窗口已关闭，无法挪动' };
+  }
 
   var existing = await db.collection('slots')
     .where({ weekDate, members: _.elemMatch({ openid }) })
@@ -507,6 +534,22 @@ function getPDTNow() {
 }
 function formatDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// 检查报名窗口是否开放: 周日 14:00 ~ 周六 01:00 PDT
+function isSignupWindowOpen(weekDateStr) {
+  var pdtNow = getPDTNow();
+  var p = weekDateStr.split('-');
+  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
+
+  var openTime = new Date(sunday);
+  openTime.setHours(14, 0, 0, 0);
+
+  var closeTime = new Date(sunday);
+  closeTime.setDate(closeTime.getDate() + 6);
+  closeTime.setHours(1, 0, 0, 0);
+
+  return pdtNow >= openTime && pdtNow < closeTime;
 }
 
 async function onCarFull(weekDate, hour, carNumber, members) {
