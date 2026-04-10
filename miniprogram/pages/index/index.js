@@ -380,6 +380,16 @@ Page({
       }
     }
 
+    // 检测 recurring 预约状态：用户开了 recurring 但该周还没有 slot
+    var recurringPending = false;
+    var recurringPendingDisplay = '';
+    if (!myRegistration && this.data.isRecurring && this.data.recurringHour != null && this.data.recurringDay != null) {
+      if (day.dayOfWeek === this.data.recurringDay) {
+        recurringPending = true;
+        recurringPendingDisplay = pdtToLocal(dayDate, this.data.recurringHour).display;
+      }
+    }
+
     this.setData({
       slotsMap: slotsMap,
       timeSlots: timeSlots,
@@ -388,7 +398,9 @@ Page({
       slotMeta: slotMeta,
       pdtTodayStr: pdtTodayStr,
       myRegistration: myRegistration,
-      selectedDayWindowOpen: windowOpen
+      selectedDayWindowOpen: windowOpen,
+      recurringPending: recurringPending,
+      recurringPendingDisplay: recurringPendingDisplay
     });
   },
 

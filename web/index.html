@@ -759,6 +759,15 @@ function rebuildSlotsMapForDay() {
   // 更新当前选中天的 myRegistration 和窗口状态
   state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
   state.selectedDayWindowOpen = isSignupWindowOpen(selectedWeekDate);
+  // recurring 预约检测
+  state.recurringPending = false;
+  state.recurringPendingDisplay = '';
+  if (!state.myRegistration && state.isRecurring && state.recurringHour != null && state.recurringDay != null) {
+    if (day.dayOfWeek === state.recurringDay) {
+      state.recurringPending = true;
+      state.recurringPendingDisplay = pdtToLocal(dayDate, state.recurringHour).display;
+    }
+  }
 }
 
 // ===== Signup Modal =====
@@ -1255,6 +1264,17 @@ function render() {
     html += '<button class="action-btn move-btn" style="font-size:12px" onclick="window._quickMovePrompt()">挪动</button>';
     html += '<button class="leave-btn" onclick="window._leave()">退出</button>';
     html += '</div></div>';
+  }
+
+  // ===== recurring 预约状态 =====
+  if (!s.myRegistration && s.recurringPending) {
+    html += '<div class="status-card" style="background:rgba(56,139,253,0.1);border-color:rgba(56,139,253,0.3)">';
+    html += '<div class="status-main">';
+    html += '<span class="status-check">🔄</span>';
+    html += '<div class="status-info">';
+    html += '<div class="status-line1" style="color:#58a6ff">每周自动 ' + esc(s.recurringPendingDisplay) + '</div>';
+    html += '<div class="status-line2">等待系统创建（每6小时检查）</div>';
+    html += '</div></div></div>';
   }
 
   // ===== 入口按钮（未报名且窗口开放时）=====

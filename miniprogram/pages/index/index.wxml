@@ -40,6 +40,19 @@
     </view>
   </view>
 
+  <!-- recurring 预约状态（该周还没实际 slot） -->
+  <view class="status-card recurring-pending" wx:if="{{!myRegistration && recurringPending}}">
+    <view class="status-main">
+      <text class="status-check">🔄</text>
+      <view class="status-info">
+        <text class="status-line1">每周自动 {{recurringPendingDisplay}}</text>
+        <view class="status-line2">
+          <text>等待系统创建（每6小时检查）</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- 入口按钮（未报名且窗口开放时显示） -->
   <view class="entry-buttons" wx:if="{{!myRegistration && !loading && selectedDayWindowOpen}}">
     <view class="entry-btn quick-join-btn" bindtap="openSignupModal" data-mode="quick">

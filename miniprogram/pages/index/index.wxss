@@ -99,6 +99,10 @@
   padding: 24rpx 28rpx;
   margin-bottom: 20rpx;
 }
+.status-card.recurring-pending {
+  background: rgba(56,139,253,0.1);
+  border-color: rgba(56,139,253,0.3);
+}
 .status-main { display: flex; align-items: center; gap: 16rpx; margin-bottom: 12rpx; }
 .status-check { font-size: 36rpx; }
 .status-info { flex: 1; }
