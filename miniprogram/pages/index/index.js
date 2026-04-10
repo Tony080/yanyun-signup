@@ -93,7 +93,7 @@ Page({
       var f = rollingDays[0];
       var la = rollingDays[rollingDays.length - 1];
       var weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-      var pdtLabel = '滚动8天 · 每周期周六1AM PDT截止';
+      var pdtLabel = '昨天 ~ +7天 · 每周期周六1AM PDT截止';
 
       var recurringLocalDisplay = '';
       if (recurringHour != null && recurringDay != null) {

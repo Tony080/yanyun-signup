@@ -616,7 +616,7 @@ function getRollingWindowDays() {
   var pdtNow = getPDTNow();
   var today = new Date(pdtNow.getFullYear(), pdtNow.getMonth(), pdtNow.getDate());
   var days = [];
-  for (var i = -1; i <= 6; i++) {
+  for (var i = -1; i <= 7; i++) {
     var d = new Date(today);
     d.setDate(today.getDate() + i);
     var dayDate = fmtDate(d);
@@ -690,7 +690,7 @@ function buildTimeSlots() {
   });
   var f = rd[0], la = rd[rd.length - 1];
   state.weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-  state.pdtLabel = '滚动8天 · 每周期周六1AM PDT截止';
+  state.pdtLabel = '昨天 ~ +7天 · 每周期周六1AM PDT截止';
   state.selectedDayWindowOpen = isSignupWindowOpen(rd[state.selectedDay].weekDate);
 }
 

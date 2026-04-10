@@ -139,7 +139,7 @@ function getWeekDateForDay(dayDateStr) {
 }
 
 /**
- * 获取滚动窗口 8 天（today-1 到 today+6）
+ * 获取滚动窗口 9 天（today-1 到 today+7）
  * 每天带有所属 weekDate
  */
 function getRollingWindowDays() {
@@ -147,7 +147,7 @@ function getRollingWindowDays() {
   var today = new Date(pdtNow.getFullYear(), pdtNow.getMonth(), pdtNow.getDate());
   var days = [];
 
-  for (var i = -1; i <= 6; i++) {
+  for (var i = -1; i <= 7; i++) {
     var d = new Date(today);
     d.setDate(today.getDate() + i);
     var dayDate = formatDate(d);
