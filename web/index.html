@@ -273,9 +273,10 @@ body {
 }
 .signup-mask.show { display: flex; }
 .signup-box {
-  background: #1a1a2e; border-radius: 12px; padding: 20px; width: 340px; max-width: 95vw;
-  max-height: 90vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08);
+  background: #1a1a2e; border-radius: 12px; padding: 20px; width: 340px; max-width: 90vw;
+  max-height: 90vh; overflow-y: auto; overflow-x: hidden; border: 1px solid rgba(255,255,255,0.08);
 }
+.signup-box * { box-sizing: border-box; }
 .signup-title { font-size: 18px; font-weight: bold; margin-bottom: 16px; text-align: center; }
 .signup-field { margin-bottom: 14px; }
 .signup-field-label { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
