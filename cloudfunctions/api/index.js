@@ -474,11 +474,77 @@ async function updateNickname(openid, { nickname }) {
 
 async function setRecurring(openid, { hour, day }) {
   if (hour != null) {
-    await setUserRecurring(openid, hour, day != null ? day : 0);
+    var dayIndex = day != null ? day : 0;
+    await setUserRecurring(openid, hour, dayIndex);
+
+    // 事件驱动：立即注册当前周+下一周（幂等，已注册则跳过）
+    var user = await db.collection('users').where({ openid }).get();
+    if (user.data.length > 0) {
+      var u = user.data[0];
+      var pdtNow = getPDTNow();
+      var currentWeek = getCurrentSunday(pdtNow);
+      var nextWeek = getNextSunday(currentWeek);
+
+      await immediateRegister(u, currentWeek, hour, dayIndex);
+      await immediateRegister(u, nextWeek, hour, dayIndex);
+    }
   } else {
     await clearUserRecurring(openid);
   }
   return { success: true };
+}
+
+// 立即为用户注册某一周（幂等：已注册则跳过）
+async function immediateRegister(user, weekDate, hour, dayIndex) {
+  var dayDate = getDayDate(weekDate, dayIndex);
+
+  // 已注册则跳过
+  var existing = await db.collection('slots')
+    .where({ weekDate: weekDate, members: _.elemMatch({ openid: user.openid }) })
+    .limit(1)
+    .get();
+  if (existing.data.length > 0) return;
+
+  // 找 count 最大的非满车
+  var cars = await db.collection('slots')
+    .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) })
+    .orderBy('count', 'desc')
+    .limit(1)
+    .get();
+
+  if (cars.data.length > 0) {
+    var car = cars.data[0];
+    var newCount = car.count + 1;
+    await db.collection('slots').doc(car._id).update({
+      data: {
+        members: _.push({
+          openid: user.openid, nickname: user.nickname,
+          role: user.role || '输出', joinedAt: db.serverDate()
+        }),
+        count: newCount,
+        full: newCount >= 10
+      }
+    });
+  } else {
+    var allCars = await db.collection('slots')
+      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour })
+      .orderBy('carIndex', 'desc')
+      .limit(1)
+      .get();
+    var newCarIndex = allCars.data.length > 0 ? allCars.data[0].carIndex + 1 : 0;
+
+    await db.collection('slots').add({
+      data: {
+        weekDate: weekDate, dayDate: dayDate, hour: hour,
+        carIndex: newCarIndex,
+        members: [{ openid: user.openid, nickname: user.nickname, role: user.role || '输出', joinedAt: db.serverDate() }],
+        count: 1, full: false, leader: null,
+        createdAt: db.serverDate()
+      }
+    });
+  }
+
+  console.log('[即时注册] ' + user.nickname + ' → ' + weekDate + ' ' + dayDate + ' ' + hour + ':00');
 }
 
 // ===== 内部工具 =====
@@ -527,6 +593,24 @@ function getDayDate(weekDate, dayIndex) {
 }
 
 var PDT_OFFSET = -7;
+function getCurrentSunday(pdtNow) {
+  var day = pdtNow.getDay();
+  var result = new Date(pdtNow);
+  if (day === 0) {
+    if (pdtNow.getHours() < 14) result.setDate(result.getDate() - 7);
+  } else {
+    result.setDate(result.getDate() - day);
+  }
+  return formatDateStr(result);
+}
+
+function getNextSunday(weekDateStr) {
+  var p = weekDateStr.split('-');
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  d.setDate(d.getDate() + 7);
+  return formatDateStr(d);
+}
+
 function getPDTNow() {
   var now = new Date();
   var utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
