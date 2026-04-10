@@ -163,6 +163,14 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
   if (recurring === true) {
     var dayIndex = getDayIndex(weekDate, dayDate);
     await setUserRecurring(openid, resultHour, dayIndex);
+    // 立即注册下一周（当前周已在上面注册了）
+    var pdtNow2 = getPDTNow();
+    var currentWeek = getCurrentSunday(pdtNow2);
+    var nextWeek = getNextSunday(currentWeek);
+    var userRes2 = await db.collection('users').where({ openid }).get();
+    if (userRes2.data.length > 0) {
+      await immediateRegister(userRes2.data[0], nextWeek, resultHour, dayIndex);
+    }
   } else if (recurring === false) {
     await clearUserRecurring(openid);
   }
@@ -221,6 +229,14 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
   if (recurring === true) {
     var dayIndex = getDayIndex(weekDate, dayDate);
     await setUserRecurring(openid, hour, dayIndex);
+    // 立即注册下一周
+    var pdtNow3 = getPDTNow();
+    var currentWeek3 = getCurrentSunday(pdtNow3);
+    var nextWeek3 = getNextSunday(currentWeek3);
+    var userRes3 = await db.collection('users').where({ openid }).get();
+    if (userRes3.data.length > 0) {
+      await immediateRegister(userRes3.data[0], nextWeek3, hour, dayIndex);
+    }
   } else if (recurring === false) {
     await clearUserRecurring(openid);
   }
