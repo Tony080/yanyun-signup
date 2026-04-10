@@ -6,7 +6,6 @@ on:
   workflow_dispatch: # 手动触发
 
 jobs:
-  # 微信云函数部署（通过 miniprogram-ci）
   deploy-cloud-functions:
     runs-on: ubuntu-latest
     steps:
@@ -17,26 +16,28 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install miniprogram-ci
-        run: npm install -g miniprogram-ci
+      - name: Install CloudBase CLI
+        run: npm install -g @cloudbase/cli
 
-      - name: Write upload key
-        run: echo '${{ secrets.WX_UPLOAD_KEY }}' > /tmp/upload-key.key
+      - name: Login to CloudBase
+        run: tcb login --apiKeyId ${{ secrets.TCB_SECRET_ID }} --apiKey ${{ secrets.TCB_SECRET_KEY }}
 
-      - name: Upload cloud functions
-        run: |
-          for fn in login api remind autoRegister; do
-            echo "--- Deploying $fn ---"
-            miniprogram-ci cloud --type uploadFunction \
-              --appid ${{ secrets.WX_APPID }} \
-              --privateKeyPath /tmp/upload-key.key \
-              --env ${{ secrets.WX_ENV_ID }} \
-              --name $fn \
-              --path cloudfunctions/$fn \
-              --remoteNpmInstall true || echo "⚠️ $fn deploy failed, continuing..."
-          done
+      - name: Deploy login
+        run: tcb fn deploy login --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/login
+        continue-on-error: true
 
-  # Discord 命令注册
+      - name: Deploy api
+        run: tcb fn deploy api --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/api
+        continue-on-error: true
+
+      - name: Deploy remind
+        run: tcb fn deploy remind --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/remind
+        continue-on-error: true
+
+      - name: Deploy autoRegister
+        run: tcb fn deploy autoRegister --env-id ${{ secrets.WX_ENV_ID }} --dir cloudfunctions/autoRegister
+        continue-on-error: true
+
   register-discord-commands:
     runs-on: ubuntu-latest
     steps:
