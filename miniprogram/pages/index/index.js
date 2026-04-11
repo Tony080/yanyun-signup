@@ -28,6 +28,11 @@ function memberStyle(color, isMe) {
   return 'background:rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + bgA + ');color:' + color + ';border:1rpx solid rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + borderA + ')';
 }
 
+var SPECIAL_USERS = ['yoky', 'ykoy', 'deand', '狐狸', '测试管理'];
+function isSpecialUser(nickname) {
+  return SPECIAL_USERS.indexOf((nickname || '').toLowerCase()) !== -1;
+}
+
 /**
  * Build inline style for a proxy extra tag given a role color hex string.
  */
@@ -525,6 +530,12 @@ Page({
           slot.leaderNick = lm ? lm.nickname : '';
         } else {
           slot.leaderNick = '';
+        }
+        // Set isLeader and isSpecial flags on each member
+        for (var j = 0; j < slot.members.length; j++) {
+          var mem = slot.members[j];
+          mem.isLeader = !!(slot.leader && mem.openid === slot.leader);
+          mem.isSpecial = isSpecialUser(mem.nickname);
         }
       }
 

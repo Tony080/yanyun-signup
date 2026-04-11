@@ -798,6 +798,11 @@ function getRoleColor(roleName) {
   return role ? role.color : '#58a6ff';
 }
 
+var SPECIAL_USERS = ['yoky', 'ykoy', 'deand', '狐狸', '测试管理'];
+function isSpecialUser(nickname) {
+  return SPECIAL_USERS.indexOf((nickname || '').toLowerCase()) !== -1;
+}
+
 function getMaxPerCar() {
   var cfg = state.currentActivityConfig;
   return (cfg && cfg.maxPerCar) ? cfg.maxPerCar : 10;
@@ -1562,24 +1567,26 @@ function render() {
           var rColor = getRoleColor(m.role);
           var isMe = m.openid === s.userId;
           var isLeader = car.leader && m.openid === car.leader;
+          var isSpecial = isSpecialUser(m.nickname);
           var isProxy = m.isProxy;
           var canRemoveProxy = isProxy && m.registeredBy === s.userId;
 
           var classes = 'member';
-          if (isLeader) classes += ' leader';
+          if (isLeader && !isSpecial) classes += ' leader';
           if (isMe) classes += ' me';
           if (isProxy && !isLeader) classes += ' proxy';
 
           var inlineStyle = '';
-          if (!isLeader) {
+          if (!isLeader || isSpecial) {
             var bgAlpha = isMe ? 0.25 : (isProxy ? 0.08 : 0.12);
             var borderAlpha = isMe ? 1 : (isProxy ? 0.15 : 0.25);
             var textAlpha = isProxy ? 0.7 : 1;
             inlineStyle = 'background:' + hexToRgba(rColor, bgAlpha) + ';color:' + hexToRgba(rColor, textAlpha) + ';border-color:' + hexToRgba(rColor, borderAlpha);
+            if (isSpecial) inlineStyle += ';font-weight:bold';
           }
 
           html += '<span class="' + classes + '" style="' + inlineStyle + '">';
-          if (isLeader) html += '👑 ';
+          if (isLeader || isSpecial) html += '👑 ';
           html += esc(m.nickname);
           if (isProxy) html += '*';
           if (canRemoveProxy) {

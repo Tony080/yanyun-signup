@@ -370,6 +370,11 @@ function getRoleEmoji(roleName, config) {
   return '🔵';
 }
 
+var SPECIAL_USERS = ['yoky', 'ykoy', 'deand', '狐狸', '测试管理'];
+function isSpecialUser(nickname) {
+  return SPECIAL_USERS.indexOf((nickname || '').toLowerCase()) !== -1;
+}
+
 // ===== Step 0: activity selection / start signup =====
 
 async function startSignup() {
@@ -857,7 +862,7 @@ async function buildBoardEmbed(activityId) {
         });
         var memberStrs = sorted.map(function(m) {
           var emoji = getRoleEmoji(m.role, config);
-          var prefix = m.openid === car.leader ? '👑' : emoji;
+          var prefix = (m.openid === car.leader || isSpecialUser(m.nickname)) ? '👑' : emoji;
           var suffix = m.registeredBy ? '*' : '';
           return prefix + m.nickname + suffix;
         });

@@ -186,17 +186,32 @@
             </view>
             <text class="car-bar-text {{car.full ? 'bar-full-text' : ''}}">{{car._pctText}}</text>
             <view class="members">
-              <!-- Leader first -->
+              <!-- Leader first (non-special) -->
               <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
-                <view class="member-wrap" wx:if="{{member.isLeader}}">
+                <view class="member-wrap" wx:if="{{member.isLeader && !member.isSpecial}}">
                   <view class="member member-leader {{member.openid === openid ? 'member-me-leader' : ''}}">
                     👑 {{member.nickname}}
                   </view>
                 </view>
               </block>
+              <!-- Special users (crown + role color) -->
+              <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
+                <view class="member-wrap" wx:if="{{member.isSpecial}}">
+                  <view class="member member-special {{member.registeredBy ? 'member-proxy' : ''}}"
+                        style="{{memberStyles[slot.pdtHour][member.openid + '_' + car.carIndex] || ''}}">
+                    👑 {{member.nickname}}{{member.registeredBy ? '*' : ''}}
+                    <text class="proxy-remove"
+                          wx:if="{{member.registeredBy === openid}}"
+                          catchtap="handleRemoveProxy"
+                          data-member-openid="{{member.openid}}"
+                          data-member-nickname="{{member.nickname}}"
+                          data-slot-id="{{car._id}}">×</text>
+                  </view>
+                </view>
+              </block>
               <!-- Regular + proxy members -->
               <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
-                <view class="member-wrap" wx:if="{{!member.isLeader}}">
+                <view class="member-wrap" wx:if="{{!member.isLeader && !member.isSpecial}}">
                   <view class="member {{member.registeredBy ? 'member-proxy' : ''}}"
                         style="{{memberStyles[slot.pdtHour][member.openid + '_' + car.carIndex] || ''}}">
                     {{member.nickname}}{{member.registeredBy ? '*' : ''}}

@@ -573,6 +573,11 @@
   border-color: #f0b429;
 }
 
+/* Special user (crown + role color) */
+.member-special {
+  font-weight: bold;
+}
+
 /* Proxy member */
 .member-proxy {
   opacity: 0.9;
