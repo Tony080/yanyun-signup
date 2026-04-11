@@ -391,6 +391,52 @@ body {
   margin-top: 8px;
 }
 .name-confirm-input:focus { border-color: rgba(240,180,41,0.4); }
+
+/* Activity bar */
+.activity-bar { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding: 4px 0; }
+.activity-item { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; background: rgba(255,255,255,0.04); color: #8b949e; white-space: nowrap; }
+.activity-item.active { background: #1f2937; color: #e6edf3; border-left: 2px solid #4a9eed; }
+.activity-add { padding: 6px 14px; color: #3fb950; font-size: 13px; cursor: pointer; white-space: nowrap; }
+
+/* Create activity modal */
+.create-activity-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6);
+  z-index: 50; display: none; align-items: center; justify-content: center;
+}
+.create-activity-mask.show { display: flex; }
+.create-activity-box {
+  background: #1a1a2e; border-radius: 12px; padding: 20px; width: 360px; max-width: 90vw;
+  max-height: 90vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08);
+}
+.ca-field { margin-bottom: 14px; }
+.ca-field-label { font-size: 12px; color: #8b949e; margin-bottom: 6px; }
+.ca-input {
+  width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 8px 10px; color: #e6edf3; font-size: 14px; outline: none;
+}
+.ca-input:focus { border-color: rgba(240,180,41,0.4); }
+.ca-number { width: 70px; text-align: center; }
+.ca-hour-row { display: flex; align-items: center; gap: 8px; }
+.ca-role-list { display: flex; flex-direction: column; gap: 8px; }
+.ca-role-item { display: flex; align-items: center; gap: 8px; }
+.ca-role-item .ca-role-chip {
+  padding: 4px 10px; border-radius: 4px; font-size: 12px; color: #fff;
+}
+.ca-role-remove { cursor: pointer; opacity: 0.6; font-size: 12px; }
+.ca-role-remove:hover { opacity: 1; }
+.ca-color-palette { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.ca-color-swatch {
+  width: 24px; height: 24px; border-radius: 4px; cursor: pointer; border: 2px solid transparent;
+}
+.ca-color-swatch.active { border-color: #fff; }
+.ca-add-role-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.ca-actions { display: flex; gap: 10px; margin-top: 16px; }
+.ca-actions button {
+  flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 15px;
+  font-weight: bold; cursor: pointer;
+}
+.ca-cancel { background: #21262d; color: #c9d1d9; }
+.ca-submit { background: #238636; color: #fff; }
 </style>
 </head>
 <body>
@@ -413,10 +459,7 @@ body {
 
     <div class="signup-field">
       <div class="signup-field-label">职业</div>
-      <div class="signup-role-group">
-        <div class="signup-role-btn blue selected" id="signupRoleOutput" onclick="window._signupSetRole('输出')">🔵 输出</div>
-        <div class="signup-role-btn green" id="signupRoleLinlin" onclick="window._signupSetRole('霖霖')">🟢 霖霖</div>
-      </div>
+      <div class="signup-role-group" id="signupRoleGroup"></div>
     </div>
 
     <div class="signup-field">
@@ -432,7 +475,7 @@ body {
         <div class="signup-proxy-tags" id="signupProxyTags"></div>
         <div class="signup-proxy-input">
           <input id="proxyNameInput" placeholder="朋友名字" maxlength="12">
-          <select id="proxyRoleSelect"><option value="输出">🔵 输出</option><option value="霖霖">🟢 霖霖</option></select>
+          <select id="proxyRoleSelect"></select>
           <button class="signup-proxy-add" onclick="window._addProxyToList()">+</button>
         </div>
       </div>
@@ -466,6 +509,17 @@ body {
     <div class="modal-btns">
       <button class="modal-cancel" id="modalCancel"></button>
       <button class="modal-confirm" id="modalConfirm"></button>
+    </div>
+  </div>
+</div>
+
+<div class="create-activity-mask" id="createActivityModal">
+  <div class="create-activity-box">
+    <div style="font-size:18px;font-weight:bold;margin-bottom:16px;text-align:center">新建活动</div>
+    <div id="createActivityContent"></div>
+    <div class="ca-actions">
+      <button class="ca-cancel" onclick="window._closeCreateActivity()">取消</button>
+      <button class="ca-submit" onclick="window._submitCreateActivity()">创建</button>
     </div>
   </div>
 </div>
@@ -510,7 +564,22 @@ var state = {
   signupRole: '输出',
   signupRecurring: false,
   signupExtras: [],
-  selectedDayWindowOpen: false
+  selectedDayWindowOpen: false,
+  // multi-activity hub
+  activities: [],
+  selectedActivity: null,
+  currentActivityConfig: null,
+  sidebarCollapsed: false,
+  // create activity modal
+  showCreateActivity: false,
+  newActivityName: '',
+  newActivityMaxPerCar: 10,
+  newActivityStartHour: 0,
+  newActivityEndHour: 23,
+  newActivityRoles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}],
+  newRoleName: '',
+  newRoleColor: '#58a6ff',
+  presetColors: ['#58a6ff','#3fb950','#f85149','#a78bfa','#f0b429','#e3b341','#39d2c0','#db61a2']
 };
 
 // ===== 初始化 =====
@@ -537,6 +606,20 @@ async function init() {
   } catch (e) {
     console.error('login failed', e);
     state.nickname = savedNick || '访客' + state.userId.slice(-4);
+  }
+
+  // Load activities
+  try {
+    var actRes = await callFunction('api', { action: 'getActivities' });
+    state.activities = (actRes.success && actRes.activities) ? actRes.activities : [];
+  } catch (e) { state.activities = []; }
+  if (state.activities.length > 0) {
+    state.selectedActivity = state.activities[0].id;
+    state.currentActivityConfig = state.activities[0];
+  } else {
+    // fallback
+    state.selectedActivity = 'a1b2c3d4';
+    state.currentActivityConfig = { id: 'a1b2c3d4', name: '十人本', maxPerCar: 10, startHour: 12, endHour: 22, roles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}] };
   }
 
   state.rollingDays = getRollingWindowDays();
@@ -684,7 +767,7 @@ function pad(n) { return String(n).padStart(2,'0'); }
 function buildTimeSlots() {
   var rd = state.rollingDays;
   var dayDate = rd[state.selectedDay].dayDate;
-  state.timeSlots = SLOT_HOURS.map(function(h) {
+  state.timeSlots = getActivityHours().map(function(h) {
     var l = pdtToLocal(dayDate, h);
     return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
   });
@@ -694,12 +777,38 @@ function buildTimeSlots() {
   state.selectedDayWindowOpen = isSignupWindowOpen(rd[state.selectedDay].weekDate);
 }
 
+// ===== Activity helpers =====
+function getActivityHours() {
+  var cfg = state.currentActivityConfig;
+  if (!cfg) return [12,13,14,15,16,17,18,19,20,21,22];
+  var hours = [];
+  for (var h = cfg.startHour; h <= cfg.endHour; h++) hours.push(h);
+  return hours;
+}
+
+function hexToRgba(hex, alpha) {
+  var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+
+function getRoleColor(roleName) {
+  var cfg = state.currentActivityConfig;
+  if (!cfg || !cfg.roles) return '#58a6ff';
+  var role = cfg.roles.find(function(r) { return r.name === roleName; });
+  return role ? role.color : '#58a6ff';
+}
+
+function getMaxPerCar() {
+  var cfg = state.currentActivityConfig;
+  return (cfg && cfg.maxPerCar) ? cfg.maxPerCar : 10;
+}
+
 // ===== 数据加载 =====
 async function loadSlots() {
   try {
     // 每个 weekDate 单独查，兼容新旧 API
     var allResults = await Promise.all(state.windowWeekDates.map(function(wd) {
-      return callFunction('api', { action: 'getSlots', weekDate: wd });
+      return callFunction('api', { action: 'getSlots', weekDate: wd, activityType: state.selectedActivity });
     }));
     var allSlots = [];
     for (var ri = 0; ri < allResults.length; ri++) {
@@ -752,7 +861,7 @@ function rebuildSlotsMapForDay() {
   });
   for (var k in slotsMap) slotsMap[k].cars.sort(function(a,b){ return a.carIndex - b.carIndex; });
   state.slotsMap = slotsMap;
-  state.timeSlots = SLOT_HOURS.map(function(h) {
+  state.timeSlots = getActivityHours().map(function(h) {
     var l = pdtToLocal(dayDate, h);
     return { pdtHour: h, display: l.display, short: l.short, dateLabel: l.dateLabel };
   });
@@ -835,7 +944,7 @@ function renderSignupModal() {
   if (isQuick) {
     optionsHtml += '<option value="random">🎲 随缘（自动选最优）</option>';
   }
-  SLOT_HOURS.forEach(function(h) {
+  getActivityHours().forEach(function(h) {
     var isPastHour = isToday && h <= currentHour;
     var isSundayDisabled = isSunday && SUNDAY_DISABLED_HOURS.indexOf(h) >= 0;
     var dis = (isPastHour || isSundayDisabled) ? ' disabled' : '';
@@ -854,11 +963,32 @@ function renderSignupModal() {
     selectEl.value = 'random';
   }
 
-  // Role buttons
-  var outputBtn = document.getElementById('signupRoleOutput');
-  var linlinBtn = document.getElementById('signupRoleLinlin');
-  outputBtn.className = 'signup-role-btn blue' + (state.signupRole === '输出' ? ' selected' : '');
-  linlinBtn.className = 'signup-role-btn green' + (state.signupRole === '霖霖' ? ' selected' : '');
+  // Role buttons (dynamic from config)
+  var roleGroupEl = document.getElementById('signupRoleGroup');
+  if (roleGroupEl) {
+    var cfg = state.currentActivityConfig;
+    var roles = (cfg && cfg.roles) ? cfg.roles : [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}];
+    var roleHtml = '';
+    roles.forEach(function(r) {
+      var isSel = state.signupRole === r.name;
+      var bg = hexToRgba(r.color, isSel ? 0.3 : 0.15);
+      var border = isSel ? r.color : 'transparent';
+      roleHtml += '<div class="signup-role-btn" style="background:' + bg + ';color:' + r.color + ';border-color:' + border + '" onclick="window._signupSetRole(\'' + esc(r.name) + '\')">' + esc(r.name) + '</div>';
+    });
+    roleGroupEl.innerHTML = roleHtml;
+  }
+
+  // Proxy role select (dynamic)
+  var proxyRoleSel = document.getElementById('proxyRoleSelect');
+  if (proxyRoleSel) {
+    var cfg2 = state.currentActivityConfig;
+    var roles2 = (cfg2 && cfg2.roles) ? cfg2.roles : [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}];
+    var proxyRoleHtml = '';
+    roles2.forEach(function(r) {
+      proxyRoleHtml += '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
+    });
+    proxyRoleSel.innerHTML = proxyRoleHtml;
+  }
 
   // Recurring checkbox
   var cbEl = document.getElementById('signupRecurringCb');
@@ -879,9 +1009,9 @@ function renderProxyTags() {
   if (!container) return;
   var html = '';
   state.proxyList.forEach(function(p, i) {
-    var rc = p.role === '霖霖' ? 'role-linlin' : 'role-output';
-    html += '<span class="signup-proxy-tag ' + rc + '">' + esc(p.nickname);
-    html += ' ' + (p.role === '霖霖' ? '🟢' : '🔵');
+    var pColor = getRoleColor(p.role);
+    html += '<span class="signup-proxy-tag" style="background:' + hexToRgba(pColor, 0.12) + ';color:' + pColor + '">' + esc(p.nickname);
+    html += ' ' + esc(p.role);
     html += '<span class="proxy-remove" onclick="window._removeProxyFromList(' + i + ')"> ×</span></span>';
   });
   container.innerHTML = html;
@@ -946,7 +1076,8 @@ window._signupSubmit = async function() {
       dayDate: selectedDayDate,
       nickname: state.nickname,
       role: role,
-      recurring: recurring
+      recurring: recurring,
+      activityType: state.selectedActivity
     };
     if (pdtHour != null) params.hour = pdtHour;
     var allExtras = extras.concat(state.proxyList);
@@ -1000,7 +1131,7 @@ async function handleLeave() {
   if (!await showModal('确认退出', msg, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var res = await callFunction('api', { action: 'leave', weekDate: state.myRegistration.weekDate });
+    var res = await callFunction('api', { action: 'leave', weekDate: state.myRegistration.weekDate, activityType: state.selectedActivity });
     if (res.success) { showToast('已退出报名'); await loadSlots(); }
     else { showToast(res.message); }
   } catch (e) { showToast('操作失败'); }
@@ -1021,7 +1152,7 @@ async function handleMove(pdtHour) {
   if (!await showModal('确认挪动', '从 ' + from + ' 挪到 ' + to + '？' + extra, '确定', '取消')) return;
   state.actionLoading = true; render();
   try {
-    var res = await callFunction('api', { action: 'move', weekDate: state.myRegistration.weekDate, targetHour: pdtHour, targetDayDate: targetDay.dayDate, nickname: state.nickname });
+    var res = await callFunction('api', { action: 'move', weekDate: state.myRegistration.weekDate, targetHour: pdtHour, targetDayDate: targetDay.dayDate, nickname: state.nickname, activityType: state.selectedActivity });
     if (res.success) {
       if (state.isRecurring) { state.recurringHour = pdtHour; state.recurringDay = targetDay.dayOfWeek; state.recurringLocalDisplay = to; }
       showToast('已挪到 ' + to); await loadSlots();
@@ -1040,7 +1171,8 @@ async function handleRemoveProxy(slotId, memberNickname) {
       action: 'removeProxy',
       weekDate: selectedWeekDate,
       slotId: slotId,
-      nickname: memberNickname
+      nickname: memberNickname,
+      activityType: state.selectedActivity
     });
     if (res.success) { showToast('已移除 ' + memberNickname); await loadSlots(); }
     else { showToast(res.message || '操作失败'); }
@@ -1225,8 +1357,13 @@ function render() {
   html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
   html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
   html += '<div class="role-selector">';
-  html += '<span class="role-dot output ' + (s.preferredRole === '输出' ? 'active' : '') + '" onclick="window._setPreferredRole(\'输出\')">🔵 输出</span>';
-  html += '<span class="role-dot linlin ' + (s.preferredRole === '霖霖' ? 'active' : '') + '" onclick="window._setPreferredRole(\'霖霖\')">🟢 霖霖</span>';
+  var cfgRoles = (s.currentActivityConfig && s.currentActivityConfig.roles) ? s.currentActivityConfig.roles : [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}];
+  cfgRoles.forEach(function(r) {
+    var isActive = s.preferredRole === r.name;
+    var bg = hexToRgba(r.color, isActive ? 0.2 : 0.1);
+    var border = isActive ? r.color : 'transparent';
+    html += '<span class="role-dot" style="background:' + bg + ';color:' + r.color + ';border-color:' + border + '" onclick="window._setPreferredRole(\'' + esc(r.name) + '\')">' + esc(r.name) + '</span>';
+  });
   html += '</div></div>';
   html += '<div class="header-rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>';
   // 恢复码（精简显示）
@@ -1236,6 +1373,15 @@ function render() {
   }
   html += '<button class="recover-btn" onclick="window._recover()">恢复账号</button>';
   html += '</div>';
+  html += '</div>';
+
+  // ===== Activity sidebar =====
+  html += '<div class="activity-bar">';
+  s.activities.forEach(function(act) {
+    var cls = act.id === s.selectedActivity ? 'activity-item active' : 'activity-item';
+    html += '<div class="' + cls + '" onclick="window._switchActivity(\'' + esc(act.id) + '\')">' + esc(act.name) + '</div>';
+  });
+  html += '<div class="activity-add" onclick="window._showCreateActivity()">+ 新建</div>';
   html += '</div>';
 
   // ===== 我的状态卡片（增强版）=====
@@ -1250,14 +1396,13 @@ function render() {
         });
       });
     }
-    var roleEmoji = myRole === '霖霖' ? '🟢' : '🔵';
-    var roleClass = myRole === '霖霖' ? 'linlin' : 'output';
+    var myRoleColor = getRoleColor(myRole);
     html += '<div class="status-card">';
     html += '<div class="status-main">';
     html += '<span class="status-check">✅</span>';
     html += '<div class="status-info">';
     html += '<div class="status-line1">已报名 ' + esc(s.myRegistration.localDisplay) + '</div>';
-    html += '<div class="status-line2">第' + (s.myRegistration.carIndex+1) + '车 · <span class="status-role ' + roleClass + '">' + roleEmoji + ' ' + esc(myRole) + '</span></div>';
+    html += '<div class="status-line2">第' + (s.myRegistration.carIndex+1) + '车 · <span class="status-role" style="background:' + hexToRgba(myRoleColor, 0.15) + ';color:' + myRoleColor + '">' + esc(myRole) + '</span></div>';
     html += '</div></div>';
     html += '<div class="status-actions">';
     html += '<button class="cal-btn" onclick="window._gcal()">添加日历</button>';
@@ -1337,7 +1482,7 @@ function render() {
       html += '<div class="recommend-card">';
       html += '<span class="recommend-badge">💡 推荐加入</span>';
       html += '<div class="recommend-text">' + esc(rec.display) + ' — 缺' + rec.neededCount + '名' + esc(rec.neededRole) + '!</div>';
-      html += '<div class="recommend-detail">第' + (rec.carIndex+1) + '车: ' + rec.carCount + '/10</div>';
+      html += '<div class="recommend-detail">第' + (rec.carIndex+1) + '车: ' + rec.carCount + '/' + getMaxPerCar() + '</div>';
       html += '<button class="recommend-btn" onclick="window._joinRecommend(' + rec.hour + ',\'' + esc(rec.neededRole) + '\')">以' + recEmoji + esc(rec.neededRole) + '加入</button>';
       html += '</div>';
     }
@@ -1394,13 +1539,14 @@ function render() {
         }
         var carTitle = '第' + (car.carIndex+1) + '车';
         if (leaderNick) carTitle += ' 👑' + esc(leaderNick);
-        var pct = car.count * 10;
 
         html += '<div class="car-card ' + (car.full ? 'full' : '') + '">';
         html += '<div class="car-top"><span class="car-name">' + carTitle + '</span>';
-        html += '<span class="car-count">' + car.count + '/10</span></div>';
-        html += '<div class="car-bar"><div class="car-bar-fill ' + (car.full ? 'bar-full' : '') + '" style="width:' + pct + '%"></div></div>';
-        html += '<div class="car-bar-text ' + (car.full ? 'bar-full-text' : '') + '">' + pct + '% — ' + (car.full ? '已满' : '还差' + (10 - car.count) + '人') + '</div>';
+        var maxPC = getMaxPerCar();
+        html += '<span class="car-count">' + car.count + '/' + maxPC + '</span></div>';
+        var pctDyn = Math.round(car.count / maxPC * 100);
+        html += '<div class="car-bar"><div class="car-bar-fill ' + (car.full ? 'bar-full' : '') + '" style="width:' + pctDyn + '%"></div></div>';
+        html += '<div class="car-bar-text ' + (car.full ? 'bar-full-text' : '') + '">' + pctDyn + '% — ' + (car.full ? '已满' : '还差' + (maxPC - car.count) + '人') + '</div>';
         html += '<div class="members">';
 
         var sortedMembers = car.members.slice();
@@ -1413,7 +1559,7 @@ function render() {
         }
 
         sortedMembers.forEach(function(m) {
-          var roleClass = m.role === '霖霖' ? 'role-linlin' : 'role-output';
+          var rColor = getRoleColor(m.role);
           var isMe = m.openid === s.userId;
           var isLeader = car.leader && m.openid === car.leader;
           var isProxy = m.isProxy;
@@ -1421,11 +1567,18 @@ function render() {
 
           var classes = 'member';
           if (isLeader) classes += ' leader';
-          else if (isProxy) classes += ' proxy ' + roleClass;
-          else classes += ' ' + roleClass;
           if (isMe) classes += ' me';
+          if (isProxy && !isLeader) classes += ' proxy';
 
-          html += '<span class="' + classes + '">';
+          var inlineStyle = '';
+          if (!isLeader) {
+            var bgAlpha = isMe ? 0.25 : (isProxy ? 0.08 : 0.12);
+            var borderAlpha = isMe ? 1 : (isProxy ? 0.15 : 0.25);
+            var textAlpha = isProxy ? 0.7 : 1;
+            inlineStyle = 'background:' + hexToRgba(rColor, bgAlpha) + ';color:' + hexToRgba(rColor, textAlpha) + ';border-color:' + hexToRgba(rColor, borderAlpha);
+          }
+
+          html += '<span class="' + classes + '" style="' + inlineStyle + '">';
           if (isLeader) html += '👑 ';
           html += esc(m.nickname);
           if (isProxy) html += '*';
@@ -1523,6 +1676,124 @@ window._removeProxyFromList = function(idx) {
   state.proxyList.splice(idx, 1);
   renderSignupModal();
 };
+
+// ===== Activity switching & creation =====
+window._switchActivity = function(id) {
+  state.selectedActivity = id;
+  state.currentActivityConfig = state.activities.find(function(a) { return a.id === id; }) || state.currentActivityConfig;
+  state.expandedSlots = {};
+  buildTimeSlots();
+  loadSlots().then(function() { render(); });
+  render();
+};
+
+window._showCreateActivity = function() {
+  state.showCreateActivity = true;
+  state.newActivityName = '';
+  state.newActivityMaxPerCar = 10;
+  state.newActivityStartHour = 0;
+  state.newActivityEndHour = 23;
+  state.newActivityRoles = [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}];
+  state.newRoleName = '';
+  state.newRoleColor = '#58a6ff';
+  renderCreateActivityModal();
+  document.getElementById('createActivityModal').classList.add('show');
+};
+
+window._closeCreateActivity = function() {
+  state.showCreateActivity = false;
+  document.getElementById('createActivityModal').classList.remove('show');
+};
+
+window._caAddRole = function() {
+  var nameEl = document.getElementById('caRoleNameInput');
+  var name = (nameEl.value || '').trim();
+  if (!name) return;
+  state.newActivityRoles.push({ name: name, color: state.newRoleColor });
+  nameEl.value = '';
+  state.newRoleName = '';
+  renderCreateActivityModal();
+};
+
+window._caRemoveRole = function(idx) {
+  state.newActivityRoles.splice(idx, 1);
+  renderCreateActivityModal();
+};
+
+window._caSetColor = function(color) {
+  state.newRoleColor = color;
+  renderCreateActivityModal();
+};
+
+window._submitCreateActivity = async function() {
+  var name = (document.getElementById('caNameInput').value || '').trim();
+  if (!name) { showToast('请输入活动名称'); return; }
+  var maxPerCar = parseInt(document.getElementById('caMaxInput').value, 10) || 10;
+  var startHour = parseInt(document.getElementById('caStartHour').value, 10) || 0;
+  var endHour = parseInt(document.getElementById('caEndHour').value, 10) || 23;
+  if (startHour > endHour) { showToast('开始时间不能大于结束时间'); return; }
+  if (state.newActivityRoles.length === 0) { showToast('至少需要一个职业'); return; }
+
+  try {
+    var res = await callFunction('api', {
+      action: 'createActivity',
+      name: name,
+      maxPerCar: maxPerCar,
+      startHour: startHour,
+      endHour: endHour,
+      roles: state.newActivityRoles
+    });
+    if (res.success && res.activity) {
+      state.activities.push(res.activity);
+      state.selectedActivity = res.activity.id;
+      state.currentActivityConfig = res.activity;
+      window._closeCreateActivity();
+      showToast('活动已创建');
+      buildTimeSlots();
+      await loadSlots();
+      render();
+    } else {
+      showToast(res.message || '创建失败');
+    }
+  } catch (e) { showToast('创建失败'); }
+};
+
+function renderCreateActivityModal() {
+  var rolesHtml = '';
+  state.newActivityRoles.forEach(function(r, i) {
+    rolesHtml += '<div class="ca-role-item">';
+    rolesHtml += '<span class="ca-role-chip" style="background:' + hexToRgba(r.color, 0.2) + ';color:' + r.color + '">' + esc(r.name) + '</span>';
+    rolesHtml += '<span class="ca-role-remove" onclick="window._caRemoveRole(' + i + ')">x</span>';
+    rolesHtml += '</div>';
+  });
+  var colorsHtml = '';
+  state.presetColors.forEach(function(c) {
+    var activeCls = c === state.newRoleColor ? ' active' : '';
+    colorsHtml += '<div class="ca-color-swatch' + activeCls + '" style="background:' + c + '" onclick="window._caSetColor(\'' + c + '\')"></div>';
+  });
+
+  var container = document.getElementById('createActivityContent');
+  if (!container) return;
+  container.innerHTML =
+    '<div class="ca-field"><div class="ca-field-label">活动名称</div>' +
+    '<input class="ca-input" id="caNameInput" value="' + esc(state.newActivityName) + '" placeholder="例如：五人本" maxlength="20"></div>' +
+    '<div class="ca-field"><div class="ca-field-label">每车人数上限</div>' +
+    '<input class="ca-input ca-number" id="caMaxInput" type="number" value="' + state.newActivityMaxPerCar + '" min="1" max="50"></div>' +
+    '<div class="ca-field"><div class="ca-field-label">可选时段（PDT小时）</div>' +
+    '<div class="ca-hour-row">' +
+    '<input class="ca-input ca-number" id="caStartHour" type="number" value="' + state.newActivityStartHour + '" min="0" max="23"> <span style="color:#8b949e">至</span> ' +
+    '<input class="ca-input ca-number" id="caEndHour" type="number" value="' + state.newActivityEndHour + '" min="0" max="23">' +
+    '</div></div>' +
+    '<div class="ca-field"><div class="ca-field-label">职业列表</div>' +
+    '<div class="ca-role-list">' + rolesHtml + '</div>' +
+    '<div class="ca-add-role-row">' +
+    '<input class="ca-input" id="caRoleNameInput" value="' + esc(state.newRoleName) + '" placeholder="职业名" maxlength="10" style="flex:1">' +
+    '<div class="ca-color-swatch" style="background:' + state.newRoleColor + ';width:28px;height:28px;flex-shrink:0"></div>' +
+    '<button class="proxy-add-btn" onclick="window._caAddRole()">+</button>' +
+    '</div>' +
+    '<div class="ca-color-palette">' + colorsHtml + '</div>' +
+    '</div>';
+}
 
 // 启动
 init();

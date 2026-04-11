@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI 方案对比 - 燕云十六声</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #e6edf3; font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; }
+.nav { display: flex; gap: 0; background: #161b22; border-bottom: 1px solid #21262d; position: sticky; top: 0; z-index: 10; overflow-x: auto; }
+.nav-btn { padding: 12px 18px; cursor: pointer; color: #8b949e; font-size: 13px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.nav-btn:hover { color: #e6edf3; }
+.nav-btn.active { color: #f0b429; border-bottom-color: #f0b429; }
+.panel { display: none; max-width: 800px; margin: 0 auto; padding: 16px; min-height: calc(100vh - 48px); }
+.panel.active { display: block; }
+.panel-title { font-size: 20px; font-weight: bold; margin-bottom: 4px; }
+.panel-sub { font-size: 13px; color: #8b949e; margin-bottom: 16px; }
+.car { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+.car-head { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; color: #8b949e; }
+.car-bar { height: 3px; background: #21262d; border-radius: 2px; margin-bottom: 8px; }
+.car-fill { height: 100%; border-radius: 2px; background: #238636; }
+.members { display: flex; flex-wrap: wrap; gap: 5px; }
+.mem { padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+.mem-blue { background: rgba(56,139,253,0.12); color: #79c0ff; }
+.mem-green { background: rgba(63,185,80,0.12); color: #7ee787; }
+.mem-leader { background: rgba(240,180,41,0.2); color: #f0b429; border: 1px solid rgba(240,180,41,0.3); }
+.slot-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.slot-time { font-size: 16px; font-weight: bold; }
+.slot-count { font-size: 12px; color: #8b949e; }
+.btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: bold; }
+.btn-green { background: #238636; color: #fff; }
+.btn-gold { background: rgba(240,180,41,0.15); color: #f0b429; border: 1px solid rgba(240,180,41,0.3); }
+.btn-blue { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.tabs { display: flex; gap: 0; margin-bottom: 16px; background: #161b22; border-radius: 8px; overflow: hidden; }
+.tab { flex: 1; padding: 10px 0; text-align: center; cursor: pointer; font-size: 13px; color: #8b949e; border-bottom: 2px solid transparent; }
+.tab.active { color: #e6edf3; background: #1f2937; border-bottom-color: #4a9eed; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.event-card { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 14px; cursor: pointer; transition: border-color 0.2s; }
+.event-card:hover { border-color: #f0b429; }
+.ec-type { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 6px; }
+.ec-raid { background: rgba(56,139,253,0.15); color: #58a6ff; }
+.ec-speed { background: rgba(240,180,41,0.15); color: #f0b429; }
+.ec-5man { background: rgba(63,185,80,0.15); color: #7ee787; }
+.ec-event { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.ec-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+.ec-time { font-size: 12px; color: #8b949e; margin-bottom: 8px; }
+.ec-slots { font-size: 13px; }
+.event-card.create { border-style: dashed; display: flex; align-items: center; justify-content: center; min-height: 100px; color: #8b949e; }
+.filter-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+.filter-bar select { background: #161b22; border: 1px solid #21262d; color: #e6edf3; padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+.list-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #161b22; border: 1px solid #21262d; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.2s; }
+.list-item:hover { border-color: #58a6ff; }
+.li-type { font-size: 11px; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; }
+.li-info { flex: 1; }
+.li-name { font-size: 14px; font-weight: bold; }
+.li-time { font-size: 12px; color: #8b949e; }
+.li-count { font-size: 13px; color: #8b949e; flex-shrink: 0; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-header { text-align: center; font-size: 12px; color: #8b949e; padding: 6px 0; }
+.cal-cell { min-height: 100px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 4px; }
+.cal-date { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+.cal-event { font-size: 11px; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; cursor: pointer; }
+.cal-ev-raid { background: rgba(56,139,253,0.2); color: #79c0ff; }
+.cal-ev-speed { background: rgba(240,180,41,0.2); color: #f0b429; }
+.cal-ev-5man { background: rgba(63,185,80,0.2); color: #7ee787; }
+.cal-ev-event { background: rgba(139,92,246,0.2); color: #a78bfa; }
+.hub { display: flex; gap: 0; height: calc(100vh - 80px); }
+.hub-sidebar { width: 160px; background: #161b22; border-right: 1px solid #21262d; padding: 12px 8px; flex-shrink: 0; }
+.hs-title { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.hub-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 4px; color: #c9d1d9; }
+.hub-item:hover { background: rgba(255,255,255,0.04); }
+.hub-item.active { background: #1f2937; color: #e6edf3; border-left: 2px solid #4a9eed; }
+.hi-count { float: right; font-size: 11px; color: #8b949e; }
+.hub-add { color: #3fb950; font-size: 13px; padding: 8px 10px; cursor: pointer; margin-top: 8px; }
+.hub-main { flex: 1; padding: 16px; overflow-y: auto; }
+.hm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.hm-title { font-size: 18px; font-weight: bold; }
+.hub-btns { display: flex; gap: 8px; margin-bottom: 16px; }
+@media (max-width: 600px) {
+  .card-grid { grid-template-columns: 1fr; }
+  .hub { flex-direction: column; height: auto; }
+  .hub-sidebar { width: 100%; border-right: none; border-bottom: 1px solid #21262d; display: flex; overflow-x: auto; padding: 8px; gap: 6px; }
+  .hs-title { display: none; }
+  .hub-item { white-space: nowrap; margin-bottom: 0; }
+  .hub-add { margin-top: 0; }
+  .cal-grid { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-btn active" onclick="showPanel('a')">A. 标签页</div>
+  <div class="nav-btn" onclick="showPanel('b')">B. 卡片</div>
+  <div class="nav-btn" onclick="showPanel('c')">C. 筛选</div>
+  <div class="nav-btn" onclick="showPanel('d')">D. 日历</div>
+  <div class="nav-btn" onclick="showPanel('e')">E. 频道</div>
+</div>
+
+<!-- A: 标签页 -->
+<div class="panel active" id="panel-a">
+  <div class="panel-title">A. 标签页切换</div>
+  <div class="panel-sub">参考 WoW 公会工具 / Guilded — 顶部标签切换活动类型</div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'ta-raid')">十人本</div>
+    <div class="tab" onclick="switchTab(this,'ta-speed')">竞速本</div>
+    <div class="tab" onclick="switchTab(this,'ta-5man')">五人本</div>
+    <div class="tab" onclick="switchTab(this,'ta-events')">百业活动</div>
+  </div>
+  <div class="tab-content active" id="ta-raid">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-green">快速加入</button>
+      <button class="btn btn-gold">创建车队</button>
+    </div>
+    <div class="slot-row"><span class="slot-time">周日 下午 2:00</span><span class="slot-count">6人</span></div>
+    <div class="car">
+      <div class="car-head"><span>第1车 (车头: Tony)</span><span>6/10</span></div>
+      <div class="car-bar"><div class="car-fill" style="width:60%"></div></div>
+      <div class="members">
+        <span class="mem mem-leader">Tony</span><span class="mem mem-blue">小红</span><span class="mem mem-green">小明</span>
+        <span class="mem mem-blue">小刚</span><span class="mem mem-blue">小李</span><span class="mem mem-green">小王</span>
+      </div>
+    </div>
+    <div class="slot-row"><span class="slot-time">周日 晚上 8:00</span><span class="slot-count">3人</span></div>
+    <div class="car">
+      <div class="car-head"><span>第1车</span><span>3/10</span></div>
+      <div class="car-bar"><div class="car-fill" style="width:30%"></div></div>
+      <div class="members">
+        <span class="mem mem-blue">张三</span><span class="mem mem-green">李四</span><span class="mem mem-blue">王五</span>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="ta-speed">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-green">快速加入</button>
+      <button class="btn btn-gold">创建车队</button>
+    </div>
+    <div class="slot-row"><span class="slot-time">周六 晚上 8:00</span><span class="slot-count">4人</span></div>
+    <div class="car">
+      <div class="car-head"><span>第1车 (车头: 疾风)</span><span>4/10</span></div>
+      <div class="car-bar"><div class="car-fill" style="width:40%"></div></div>
+      <div class="members">
+        <span class="mem mem-leader">疾风</span><span class="mem mem-blue">飞鸟</span><span class="mem mem-blue">闪电</span><span class="mem mem-green">奶妈</span>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="ta-5man">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-green">快速加入</button>
+      <button class="btn btn-gold">创建车队</button>
+    </div>
+    <div class="slot-row"><span class="slot-time">周五 晚上 9:00</span><span class="slot-count">2人</span></div>
+    <div class="car">
+      <div class="car-head"><span>第1车</span><span>2/5</span></div>
+      <div class="car-bar"><div class="car-fill" style="width:40%"></div></div>
+      <div class="members">
+        <span class="mem mem-blue">阿猫</span><span class="mem mem-green">阿狗</span>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="ta-events">
+    <p style="color:#8b949e;padding:20px;text-align:center">暂无活动。<a href="#" style="color:#58a6ff">创建一个？</a></p>
+  </div>
+</div>
+
+<!-- B: 卡片 -->
+<div class="panel" id="panel-b">
+  <div class="panel-title">B. 卡片网格</div>
+  <div class="panel-sub">参考 Eventbrite / Meetup — 每个活动一张卡片</div>
+  <div class="card-grid">
+    <div class="event-card">
+      <span class="ec-type ec-raid">十人本</span>
+      <div class="ec-name">每周十人本</div>
+      <div class="ec-time">周日 下午2:00 - 10:00 PT</div>
+      <div class="ec-slots">6/10 已报名 · 1车</div>
+      <div style="margin-top:8px"><button class="btn btn-green btn-sm">加入</button></div>
+    </div>
+    <div class="event-card">
+      <span class="ec-type ec-speed">竞速</span>
+      <div class="ec-name">竞速挑战赛</div>
+      <div class="ec-time">周六 晚上8:00 PT</div>
+      <div class="ec-slots">4/10 已报名 · 1车</div>
+      <div style="margin-top:8px"><button class="btn btn-green btn-sm">加入</button></div>
+    </div>
+    <div class="event-card">
+      <span class="ec-type ec-5man">五人本</span>
+      <div class="ec-name">周五副本之夜</div>
+      <div class="ec-time">周五 晚上9:00 PT</div>
+      <div class="ec-slots">2/5 已报名</div>
+      <div style="margin-top:8px"><button class="btn btn-green btn-sm">加入</button></div>
+    </div>
+    <div class="event-card">
+      <span class="ec-type ec-event">活动</span>
+      <div class="ec-name">工会合影日</div>
+      <div class="ec-time">周四 晚上7:00 PT</div>
+      <div class="ec-slots">12人感兴趣</div>
+      <div style="margin-top:8px"><button class="btn btn-blue btn-sm">感兴趣</button></div>
+    </div>
+    <div class="event-card create">+ 创建新活动</div>
+  </div>
+</div>
+
+<!-- C: 筛选 -->
+<div class="panel" id="panel-c">
+  <div class="panel-title">C. 下拉筛选</div>
+  <div class="panel-sub">参考 Discord LFG / WoW 组队器 — 统一列表 + 类型筛选</div>
+  <div class="filter-bar">
+    <span style="font-size:13px;color:#8b949e">筛选：</span>
+    <select id="filterType" onchange="filterList()">
+      <option value="all">全部类型</option>
+      <option value="raid">十人本</option>
+      <option value="speed">竞速本</option>
+      <option value="5man">五人本</option>
+      <option value="event">百业活动</option>
+    </select>
+    <select>
+      <option>本周</option>
+      <option>下周</option>
+    </select>
+    <button class="btn btn-green btn-sm" style="margin-left:auto">+ 创建</button>
+  </div>
+  <div id="filterItems">
+    <div class="list-item" data-type="raid">
+      <span class="li-type ec-raid">十人本</span>
+      <div class="li-info"><div class="li-name">每周十人本</div><div class="li-time">周日 下午2:00 · 第1车 (车头: Tony)</div></div>
+      <div class="li-count">6/10</div>
+      <button class="btn btn-green btn-sm">加入</button>
+    </div>
+    <div class="list-item" data-type="raid">
+      <span class="li-type ec-raid">十人本</span>
+      <div class="li-info"><div class="li-name">每周十人本</div><div class="li-time">周日 晚上8:00 · 第1车</div></div>
+      <div class="li-count">3/10</div>
+      <button class="btn btn-green btn-sm">加入</button>
+    </div>
+    <div class="list-item" data-type="speed">
+      <span class="li-type ec-speed">竞速</span>
+      <div class="li-info"><div class="li-name">竞速挑战赛</div><div class="li-time">周六 晚上8:00 · 车头: 疾风</div></div>
+      <div class="li-count">4/10</div>
+      <button class="btn btn-green btn-sm">加入</button>
+    </div>
+    <div class="list-item" data-type="5man">
+      <span class="li-type ec-5man">五人本</span>
+      <div class="li-info"><div class="li-name">周五副本之夜</div><div class="li-time">周五 晚上9:00</div></div>
+      <div class="li-count">2/5</div>
+      <button class="btn btn-green btn-sm">加入</button>
+    </div>
+    <div class="list-item" data-type="event">
+      <span class="li-type ec-event">活动</span>
+      <div class="li-info"><div class="li-name">工会合影日</div><div class="li-time">周四 晚上7:00</div></div>
+      <div class="li-count">12</div>
+      <button class="btn btn-blue btn-sm">参加</button>
+    </div>
+  </div>
+</div>
+
+<!-- D: 日历 -->
+<div class="panel" id="panel-d">
+  <div class="panel-title">D. 日历视图</div>
+  <div class="panel-sub">参考 Raid Helper / Google Calendar — 周历上显示活动块</div>
+  <div class="cal-grid">
+    <div class="cal-header">周日</div><div class="cal-header">周一</div><div class="cal-header">周二</div>
+    <div class="cal-header">周三</div><div class="cal-header">周四</div><div class="cal-header">周五</div><div class="cal-header">周六</div>
+    <div class="cal-cell">
+      <div class="cal-date">4/6</div>
+      <div class="cal-event cal-ev-raid">十人本 2PM (6/10)</div>
+      <div class="cal-event cal-ev-raid">十人本 8PM (3/10)</div>
+    </div>
+    <div class="cal-cell"><div class="cal-date">4/7</div></div>
+    <div class="cal-cell"><div class="cal-date">4/8</div></div>
+    <div class="cal-cell"><div class="cal-date">4/9</div></div>
+    <div class="cal-cell">
+      <div class="cal-date">4/10</div>
+      <div class="cal-event cal-ev-event">合影日 7PM</div>
+    </div>
+    <div class="cal-cell">
+      <div class="cal-date">4/11</div>
+      <div class="cal-event cal-ev-5man">五人本 9PM (2/5)</div>
+    </div>
+    <div class="cal-cell">
+      <div class="cal-date">4/12</div>
+      <div class="cal-event cal-ev-speed">竞速 8PM (4/10)</div>
+    </div>
+  </div>
+</div>
+
+<!-- E: 频道 -->
+<div class="panel" id="panel-e">
+  <div class="panel-title">E. 频道式（推荐）</div>
+  <div class="panel-sub">参考 Slack / Discord 频道 — 侧边栏导航 + 右侧详情，100% 复用现有 UI</div>
+  <div class="hub">
+    <div class="hub-sidebar">
+      <div class="hs-title">活动列表</div>
+      <div class="hub-item active" onclick="switchHub(this,'he-raid')">十人本 <span class="hi-count">9</span></div>
+      <div class="hub-item" onclick="switchHub(this,'he-speed')">竞速本 <span class="hi-count">4</span></div>
+      <div class="hub-item" onclick="switchHub(this,'he-5man')">五人本 <span class="hi-count">2</span></div>
+      <div class="hub-item" onclick="switchHub(this,'he-events')">百业活动 <span class="hi-count">12</span></div>
+      <div class="hub-add">+ 新建活动</div>
+    </div>
+    <div class="hub-main">
+      <div class="tab-content active" id="he-raid">
+        <div class="hm-header">
+          <span class="hm-title">每周十人本</span>
+          <span style="font-size:12px;color:#8b949e">周日 2-10PM PT · 每车10人</span>
+        </div>
+        <div class="hub-btns">
+          <button class="btn btn-green">快速加入</button>
+          <button class="btn btn-gold">创建车队</button>
+        </div>
+        <div class="slot-row"><span class="slot-time">周日 下午 2:00</span><span class="slot-count">6人</span></div>
+        <div class="car">
+          <div class="car-head"><span>第1车 (车头: Tony)</span><span>6/10</span></div>
+          <div class="car-bar"><div class="car-fill" style="width:60%"></div></div>
+          <div class="members">
+            <span class="mem mem-leader">Tony</span><span class="mem mem-blue">小红</span><span class="mem mem-green">小明</span>
+            <span class="mem mem-blue">小刚</span><span class="mem mem-blue">小李</span><span class="mem mem-green">小王</span>
+          </div>
+        </div>
+        <div class="slot-row"><span class="slot-time">周日 晚上 8:00</span><span class="slot-count">3人</span></div>
+        <div class="car">
+          <div class="car-head"><span>第1车</span><span>3/10</span></div>
+          <div class="car-bar"><div class="car-fill" style="width:30%"></div></div>
+          <div class="members">
+            <span class="mem mem-blue">张三</span><span class="mem mem-green">李四</span><span class="mem mem-blue">王五</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-content" id="he-speed">
+        <div class="hm-header">
+          <span class="hm-title">竞速挑战赛</span>
+          <span style="font-size:12px;color:#8b949e">周六 8PM PT · 每车10人</span>
+        </div>
+        <div class="hub-btns">
+          <button class="btn btn-green">快速加入</button>
+          <button class="btn btn-gold">创建车队</button>
+        </div>
+        <div class="slot-row"><span class="slot-time">周六 晚上 8:00</span><span class="slot-count">4人</span></div>
+        <div class="car">
+          <div class="car-head"><span>第1车 (车头: 疾风)</span><span>4/10</span></div>
+          <div class="car-bar"><div class="car-fill" style="width:40%"></div></div>
+          <div class="members">
+            <span class="mem mem-leader">疾风</span><span class="mem mem-blue">飞鸟</span><span class="mem mem-blue">闪电</span><span class="mem mem-green">奶妈</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-content" id="he-5man">
+        <div class="hm-header">
+          <span class="hm-title">周五副本之夜</span>
+          <span style="font-size:12px;color:#8b949e">周五 9PM PT · 每车5人</span>
+        </div>
+        <div class="hub-btns">
+          <button class="btn btn-green">快速加入</button>
+          <button class="btn btn-gold">创建车队</button>
+        </div>
+        <div class="slot-row"><span class="slot-time">周五 晚上 9:00</span><span class="slot-count">2人</span></div>
+        <div class="car">
+          <div class="car-head"><span>第1车</span><span>2/5</span></div>
+          <div class="car-bar"><div class="car-fill" style="width:40%"></div></div>
+          <div class="members">
+            <span class="mem mem-blue">阿猫</span><span class="mem mem-green">阿狗</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-content" id="he-events">
+        <div class="hm-header">
+          <span class="hm-title">百业活动</span>
+          <span style="font-size:12px;color:#8b949e">工会社区活动</span>
+        </div>
+        <div class="hub-btns">
+          <button class="btn btn-gold">创建活动</button>
+        </div>
+        <div class="car">
+          <div class="car-head"><span>工会合影日 · 周四 7PM</span><span>12人感兴趣</span></div>
+          <div class="members" style="margin-top:8px">
+            <span class="mem mem-blue">小A</span><span class="mem mem-blue">小B</span><span class="mem mem-green">小C</span>
+            <span class="mem mem-blue">小D</span><span class="mem mem-blue">小E</span><span class="mem mem-green">小F</span>
+            <span style="font-size:12px;color:#8b949e">+6人</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active')});
+  document.getElementById('panel-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+function switchTab(el,id) {
+  el.parentElement.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  el.classList.add('active');
+  el.parentElement.parentElement.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active')});
+  document.getElementById(id).classList.add('active');
+}
+function switchHub(el,id) {
+  el.parentElement.querySelectorAll('.hub-item').forEach(function(i){i.classList.remove('active')});
+  el.classList.add('active');
+  el.closest('.hub').querySelector('.hub-main').querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active')});
+  document.getElementById(id).classList.add('active');
+}
+function filterList() {
+  var type=document.getElementById('filterType').value;
+  document.querySelectorAll('#filterItems .list-item').forEach(function(item){
+    item.style.display=(type==='all'||item.dataset.type===type)?'flex':'none';
+  });
+}
+</script>
+</body>
+</html>

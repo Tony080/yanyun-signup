@@ -4,12 +4,14 @@ const db = cloud.database();
 const _ = db.command;
 
 const PDT_OFFSET = -7;
+const DEFAULT_ACTIVITY = 'a1b2c3d4';
 
 /**
  * 每6小时触发，用户级幂等：
+ * - 读取活动配置获取 maxPerCar
  * - 遍历所有 recurring 用户
  * - 对当前周+下一周，已注册的跳过，没注册的补上
- * - 无全局锁，新开 recurring 的用户下次触发就能被注册
+ * - 用用户的 recurringActivity（默认 raid）决定注册哪个活动
  */
 exports.main = async (event, context) => {
   var pdtNow = getPDTNow();
@@ -18,6 +20,9 @@ exports.main = async (event, context) => {
   var weeks = [currentWeek, nextWeek];
 
   console.log('[自动报名] 检查 ' + weeks.join(', '));
+
+  // 加载活动配置
+  var activities = await loadActivities();
 
   // 查所有 recurring 用户
   var usersRes = await db.collection('users')
@@ -36,10 +41,11 @@ exports.main = async (event, context) => {
 
   for (var i = 0; i < usersRes.data.length; i++) {
     var user = usersRes.data[i];
+    var activityType = user.recurringActivity || DEFAULT_ACTIVITY;
+    var config = getActivityConfig(activities, activityType);
 
     for (var w = 0; w < weeks.length; w++) {
-      var weekDate = weeks[w];
-      var result = await registerUserForWeek(user, weekDate);
+      var result = await registerUserForWeek(user, weeks[w], activityType, config.maxPerCar);
       if (result) registered++;
     }
   }
@@ -48,26 +54,22 @@ exports.main = async (event, context) => {
   return { registered: registered, weeks: weeks };
 };
 
-/**
- * 为单个用户注册单个周期（幂等：已注册则跳过）
- * 返回 true 如果实际注册了
- */
-async function registerUserForWeek(user, weekDate) {
+async function registerUserForWeek(user, weekDate, activityType, maxPerCar) {
   var hour = user.recurringHour;
   var dayIndex = user.recurringDay || 0;
   var dayDate = getDayDate(weekDate, dayIndex);
 
-  // 用户级去重：该周已注册则跳过
+  // 用户级去重：该活动该周已注册则跳过
   var existing = await db.collection('slots')
-    .where({ weekDate: weekDate, members: _.elemMatch({ openid: user.openid }) })
+    .where({ weekDate: weekDate, activityType: activityType, members: _.elemMatch({ openid: user.openid }) })
     .limit(1)
     .get();
 
   if (existing.data.length > 0) return false;
 
-  // 找 count 最大的非满车（优先填满车）
+  // 找 count 最大的非满车
   var cars = await db.collection('slots')
-    .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) })
+    .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, activityType: activityType, full: _.neq(true) })
     .orderBy('count', 'desc')
     .limit(1)
     .get();
@@ -78,19 +80,16 @@ async function registerUserForWeek(user, weekDate) {
     await db.collection('slots').doc(car._id).update({
       data: {
         members: _.push({
-          openid: user.openid,
-          nickname: user.nickname,
-          role: user.role || '输出',
-          joinedAt: db.serverDate()
+          openid: user.openid, nickname: user.nickname,
+          role: user.role || '输出', joinedAt: db.serverDate()
         }),
         count: newCount,
-        full: newCount >= 10
+        full: newCount >= maxPerCar
       }
     });
   } else {
-    // 开新车
     var allCars = await db.collection('slots')
-      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour })
+      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, activityType: activityType })
       .orderBy('carIndex', 'desc')
       .limit(1)
       .get();
@@ -100,6 +99,7 @@ async function registerUserForWeek(user, weekDate) {
     await db.collection('slots').add({
       data: {
         weekDate: weekDate, dayDate: dayDate, hour: hour,
+        activityType: activityType,
         carIndex: newCarIndex,
         members: [{ openid: user.openid, nickname: user.nickname, role: user.role || '输出', joinedAt: db.serverDate() }],
         count: 1, full: false, leader: null,
@@ -108,8 +108,24 @@ async function registerUserForWeek(user, weekDate) {
     });
   }
 
-  console.log('[自动报名] ' + user.nickname + ' → ' + weekDate + ' ' + dayDate + ' ' + hour + ':00');
+  console.log('[自动报名] ' + user.nickname + ' → ' + activityType + ' ' + weekDate + ' ' + dayDate + ' ' + hour + ':00');
   return true;
+}
+
+// ===== 活动配置 =====
+
+async function loadActivities() {
+  try {
+    var res = await db.collection('config').where({ type: 'activities' }).limit(1).get();
+    return res.data.length > 0 ? res.data[0].activities : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function getActivityConfig(activities, activityType) {
+  var act = activities.find(function(a) { return a.id === activityType; });
+  return act || { id: activityType, maxPerCar: 10 };
 }
 
 // ===== 工具函数 =====

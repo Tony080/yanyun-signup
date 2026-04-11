@@ -85,11 +85,47 @@
 .role-dot {
   padding: 8rpx 18rpx; border-radius: 12rpx; font-size: 22rpx; border: 2rpx solid transparent;
 }
-.role-dot.output { background: rgba(56,139,253,0.1); color: #79c0ff; }
-.role-dot.output.active { background: rgba(56,139,253,0.2); border-color: #58a6ff; }
-.role-dot.linlin { background: rgba(63,185,80,0.1); color: #7ee787; }
-.role-dot.linlin.active { background: rgba(63,185,80,0.2); border-color: #3fb950; }
+.role-dot.active { border-width: 2rpx; }
 .header-rules { font-size: 20rpx; color: #484f58; margin-top: 16rpx; border-top: 1rpx solid rgba(255,255,255,0.04); padding-top: 12rpx; }
+
+/* ===== Activity selector bar ===== */
+.activity-bar {
+  display: flex;
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+  padding: 8rpx 0;
+}
+
+.activity-item {
+  display: inline-block;
+  padding: 12rpx 28rpx;
+  margin-right: 12rpx;
+  border-radius: 24rpx;
+  font-size: 26rpx;
+  color: #8b949e;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1rpx solid #21262d;
+  flex-shrink: 0;
+}
+
+.activity-item.active {
+  background: rgba(240, 180, 41, 0.15);
+  color: #f0b429;
+  border-color: rgba(240, 180, 41, 0.4);
+  font-weight: 600;
+}
+
+.activity-add {
+  display: inline-block;
+  padding: 12rpx 28rpx;
+  margin-right: 12rpx;
+  border-radius: 24rpx;
+  font-size: 26rpx;
+  color: #58a6ff;
+  background: rgba(56, 139, 253, 0.08);
+  border: 1rpx dashed rgba(56, 139, 253, 0.3);
+  flex-shrink: 0;
+}
 
 /* ===== 状态卡片（增强版）===== */
 .status-card {
@@ -165,7 +201,7 @@
 .recommend-text { font-size: 26rpx; color: #e6edf3; margin-bottom: 4rpx; }
 .recommend-detail { font-size: 24rpx; color: #8b949e; margin-bottom: 16rpx; }
 .recommend-btn {
-  display: inline-block; background: #238636; color: #fff; border-radius: 12rpx;
+  display: inline-block; border-radius: 12rpx;
   padding: 12rpx 32rpx; font-size: 24rpx; font-weight: bold;
 }
 
@@ -524,47 +560,12 @@
   gap: 6rpx;
 }
 
-/* 输出=蓝色（默认） */
-.role-output {
-  background: rgba(56, 139, 253, 0.12);
-  color: #79c0ff;
-  border-color: rgba(56, 139, 253, 0.25);
-}
-
-/* 霖霖=绿色 */
-.role-linlin {
-  background: rgba(63, 185, 80, 0.12);
-  color: #7ee787;
-  border-color: rgba(63, 185, 80, 0.25);
-}
-
-/* 自己高亮边框 */
-.member-me.role-output {
-  background: rgba(56, 139, 253, 0.25);
-  border-color: #58a6ff;
-}
-
-.member-me.role-linlin {
-  background: rgba(63, 185, 80, 0.25);
-  border-color: #3fb950;
-}
-
 /* Leader 样式 */
 .member-leader {
   border: 1rpx solid #f0b429;
   font-weight: bold;
-}
-
-.role-output-leader {
   background: rgba(240, 180, 41, 0.2);
   color: #f0b429;
-  border-color: #f0b429;
-}
-
-.role-linlin-leader {
-  background: rgba(240, 180, 41, 0.2);
-  color: #f0b429;
-  border-color: #f0b429;
 }
 
 .member-me-leader {
@@ -638,6 +639,11 @@
   box-shadow: 0 16rpx 48rpx rgba(0, 0, 0, 0.4);
 }
 
+.create-activity-card {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
 .modal-title {
   font-size: 36rpx;
   font-weight: bold;
@@ -653,11 +659,22 @@
   gap: 16rpx;
 }
 
+.modal-row-block {
+  margin-bottom: 24rpx;
+}
+
 .modal-label {
   font-size: 28rpx;
   color: #8b949e;
   flex-shrink: 0;
   width: 80rpx;
+}
+
+.modal-label-block {
+  font-size: 28rpx;
+  color: #8b949e;
+  margin-bottom: 16rpx;
+  display: block;
 }
 
 .modal-picker {
@@ -673,51 +690,54 @@
   justify-content: space-between;
 }
 
+.modal-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1rpx solid #30363d;
+  border-radius: 12rpx;
+  padding: 16rpx 24rpx;
+  color: #e6edf3;
+  font-size: 26rpx;
+}
+
+.modal-input-short {
+  flex: none;
+  width: 160rpx;
+}
+
+.modal-hint-text {
+  font-size: 24rpx;
+  color: #8b949e;
+}
+
 .picker-arrow {
   color: #8b949e;
   font-size: 22rpx;
   margin-left: 12rpx;
 }
 
-/* Role buttons */
+/* Role buttons (dynamic) */
 .role-buttons {
   display: flex;
   gap: 16rpx;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .role-btn {
   flex: 1;
+  min-width: 120rpx;
   text-align: center;
   padding: 14rpx 0;
   border-radius: 12rpx;
   font-size: 26rpx;
   font-weight: bold;
   border: 2rpx solid transparent;
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.role-btn-output {
-  background: rgba(88, 166, 255, 0.1);
-  color: #58a6ff;
-  border-color: rgba(88, 166, 255, 0.3);
-}
-
-.role-btn-output-active {
-  background: rgba(88, 166, 255, 0.25);
-  color: #58a6ff;
-  border-color: #58a6ff;
-}
-
-.role-btn-linlin {
-  background: rgba(63, 185, 80, 0.1);
-  color: #3fb950;
-  border-color: rgba(63, 185, 80, 0.3);
-}
-
-.role-btn-linlin-active {
-  background: rgba(63, 185, 80, 0.25);
-  color: #3fb950;
-  border-color: #3fb950;
+.role-btn.role-active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Recurring checkbox */
@@ -780,22 +800,9 @@
   padding: 8rpx 16rpx;
   border-radius: 8rpx;
   font-size: 24rpx;
-}
-
-.extra-tag-output {
-  background: rgba(56, 139, 253, 0.15);
-  color: #79c0ff;
-  border: 1rpx solid rgba(56, 139, 253, 0.3);
-}
-
-.extra-tag-linlin {
-  background: rgba(63, 185, 80, 0.15);
-  color: #7ee787;
-  border: 1rpx solid rgba(63, 185, 80, 0.3);
-}
-
-.extra-role-icon {
-  font-size: 20rpx;
+  background: rgba(255, 255, 255, 0.06);
+  color: #c9d1d9;
+  border: 1rpx solid #30363d;
 }
 
 .extra-remove {
@@ -837,16 +844,6 @@
   font-size: 24rpx;
   background: rgba(255, 255, 255, 0.06);
   border: 2rpx solid transparent;
-}
-
-.extra-role-active-output {
-  border-color: #58a6ff;
-  background: rgba(88, 166, 255, 0.2);
-}
-
-.extra-role-active-linlin {
-  border-color: #3fb950;
-  background: rgba(63, 185, 80, 0.2);
 }
 
 .extra-add-btn {
@@ -895,4 +892,85 @@
 
 .btn-disabled {
   opacity: 0.5;
+}
+
+/* ===== Create Activity Modal extras ===== */
+
+/* Role tags in create modal */
+.role-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.role-tag {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1rpx solid;
+}
+
+.role-tag-remove {
+  font-size: 28rpx;
+  font-weight: bold;
+  padding: 0 4rpx;
+  margin-left: 4rpx;
+  opacity: 0.7;
+}
+
+/* Role add row */
+.role-add-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.role-add-input {
+  flex: 1;
+  min-width: 160rpx;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1rpx solid #30363d;
+  border-radius: 10rpx;
+  padding: 10rpx 16rpx;
+  color: #e6edf3;
+  font-size: 24rpx;
+}
+
+.color-palette {
+  display: flex;
+  gap: 8rpx;
+  flex-wrap: wrap;
+}
+
+.color-dot {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  border: 3rpx solid transparent;
+}
+
+.color-dot-active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2rpx rgba(255, 255, 255, 0.3);
+}
+
+.role-add-btn {
+  background: #238636;
+  color: #fff;
+  border-radius: 10rpx;
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: bold;
+  flex-shrink: 0;
 }

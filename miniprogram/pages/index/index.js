@@ -1,10 +1,40 @@
 var week = require('../../utils/week');
-var SLOT_HOURS_PDT = week.SLOT_HOURS_PDT;
 var SUNDAY_DISABLED_HOURS = week.SUNDAY_DISABLED_HOURS;
 var pdtToLocal = week.pdtToLocal;
 var getRollingWindowDays = week.getRollingWindowDays;
 var getWindowWeekDates = week.getWindowWeekDates;
 var isSignupWindowOpen = week.isSignupWindowOpen;
+
+/**
+ * Helper: hex color string "#RRGGBB" -> {r, g, b}
+ */
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  var num = parseInt(hex, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+/**
+ * Build inline style for a member chip given a role color hex string.
+ * isMe: highlight with stronger background & border
+ */
+function memberStyle(color, isMe) {
+  var rgb = hexToRgb(color);
+  var bgA = isMe ? 0.25 : 0.12;
+  var borderA = isMe ? 0.6 : 0.25;
+  return 'background:rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + bgA + ');color:' + color + ';border:1rpx solid rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + borderA + ')';
+}
+
+/**
+ * Build inline style for a proxy extra tag given a role color hex string.
+ */
+function extraTagStyle(color) {
+  var rgb = hexToRgb(color);
+  return 'background:rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.15);color:' + color + ';border:1rpx solid rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.3)';
+}
 
 Page({
   data: {
@@ -64,7 +94,26 @@ Page({
     slotMeta: {},
 
     // 当前选中天的报名窗口状态
-    selectedDayWindowOpen: false
+    selectedDayWindowOpen: false,
+
+    // ===== Multi-activity support =====
+    activities: [],
+    selectedActivity: '',
+    currentActivityConfig: null,
+
+    // Create activity modal
+    showCreateActivityModal: false,
+    newActivityName: '',
+    newActivityMaxPerCar: 10,
+    newActivityStartHour: 0,
+    newActivityEndHour: 23,
+    newActivityRoles: [
+      { name: '输出', color: '#58a6ff' },
+      { name: '霖霖', color: '#3fb950' }
+    ],
+    newRoleName: '',
+    newRoleColor: '#58a6ff',
+    presetColors: ['#58a6ff', '#3fb950', '#f85149', '#a78bfa', '#f0b429', '#e3b341', '#39d2c0', '#db61a2']
   },
 
   onLoad: function () {
@@ -97,7 +146,6 @@ Page({
 
       var recurringLocalDisplay = '';
       if (recurringHour != null && recurringDay != null) {
-        // 在滚动窗口中找到对应 recurring 的天
         var recDay = rollingDays.find(function(d) { return d.dayOfWeek === recurringDay; });
         if (recDay) {
           recurringLocalDisplay = pdtToLocal(recDay.dayDate, recurringHour).display;
@@ -122,6 +170,8 @@ Page({
         recurringLocalDisplay: recurringLocalDisplay
       });
 
+      // Load activities first, then slots
+      await this.loadActivities();
       await this.loadSlots();
     } catch (err) {
       console.error('init failed', err);
@@ -129,6 +179,224 @@ Page({
     } finally {
       wx.hideLoading();
     }
+  },
+
+  // ===== Activity management =====
+
+  loadActivities: async function () {
+    try {
+      var res = await wx.cloud.callFunction({
+        name: 'api',
+        data: { action: 'getActivities' }
+      });
+      if (res.result && res.result.success && res.result.activities && res.result.activities.length > 0) {
+        var acts = res.result.activities;
+        var selectedId = this.data.selectedActivity || acts[0].id;
+        var config = acts.find(function(a) { return a.id === selectedId; }) || acts[0];
+        selectedId = config.id;
+        this.setData({
+          activities: acts,
+          selectedActivity: selectedId,
+          currentActivityConfig: config
+        });
+      } else {
+        // Fallback: create a default config if API returns nothing
+        var defaultConfig = {
+          id: 'default',
+          name: '百业十人本',
+          maxPerCar: 10,
+          startHour: 12,
+          endHour: 22,
+          roles: [
+            { name: '输出', color: '#58a6ff' },
+            { name: '霖霖', color: '#3fb950' }
+          ]
+        };
+        this.setData({
+          activities: [defaultConfig],
+          selectedActivity: 'default',
+          currentActivityConfig: defaultConfig
+        });
+      }
+    } catch (err) {
+      console.error('loadActivities failed', err);
+      // Fallback default
+      var defaultConfig = {
+        id: 'default',
+        name: '百业十人本',
+        maxPerCar: 10,
+        startHour: 12,
+        endHour: 22,
+        roles: [
+          { name: '输出', color: '#58a6ff' },
+          { name: '霖霖', color: '#3fb950' }
+        ]
+      };
+      this.setData({
+        activities: [defaultConfig],
+        selectedActivity: 'default',
+        currentActivityConfig: defaultConfig
+      });
+    }
+  },
+
+  switchActivity: function (e) {
+    var id = e.currentTarget.dataset.id;
+    if (id === this.data.selectedActivity) return;
+    var config = this.data.activities.find(function(a) { return a.id === id; });
+    if (!config) return;
+    this.setData({
+      selectedActivity: id,
+      currentActivityConfig: config,
+      loading: true,
+      expandedSlots: {}
+    });
+    this.loadSlots();
+  },
+
+  // ===== Create activity modal =====
+
+  showCreateActivity: function () {
+    this.setData({
+      showCreateActivityModal: true,
+      newActivityName: '',
+      newActivityMaxPerCar: 10,
+      newActivityStartHour: 0,
+      newActivityEndHour: 23,
+      newActivityRoles: [
+        { name: '输出', color: '#58a6ff' },
+        { name: '霖霖', color: '#3fb950' }
+      ],
+      newRoleName: '',
+      newRoleColor: '#58a6ff'
+    });
+  },
+
+  closeCreateActivity: function () {
+    this.setData({ showCreateActivityModal: false });
+  },
+
+  onNewActivityNameInput: function (e) {
+    this.setData({ newActivityName: e.detail.value });
+  },
+
+  onNewActivityMaxInput: function (e) {
+    var val = parseInt(e.detail.value) || 1;
+    if (val < 1) val = 1;
+    if (val > 99) val = 99;
+    this.setData({ newActivityMaxPerCar: val });
+  },
+
+  onStartHourChange: function (e) {
+    var val = parseInt(e.detail.value);
+    this.setData({ newActivityStartHour: val });
+  },
+
+  onEndHourChange: function (e) {
+    var val = parseInt(e.detail.value);
+    this.setData({ newActivityEndHour: val });
+  },
+
+  onNewRoleNameInput: function (e) {
+    this.setData({ newRoleName: e.detail.value });
+  },
+
+  selectNewRoleColor: function (e) {
+    var color = e.currentTarget.dataset.color;
+    this.setData({ newRoleColor: color });
+  },
+
+  addNewRole: function () {
+    var name = (this.data.newRoleName || '').trim();
+    if (!name) {
+      wx.showToast({ title: '请输入角色名', icon: 'none' });
+      return;
+    }
+    var exists = this.data.newActivityRoles.some(function(r) { return r.name === name; });
+    if (exists) {
+      wx.showToast({ title: '角色名已存在', icon: 'none' });
+      return;
+    }
+    var roles = this.data.newActivityRoles.concat([{ name: name, color: this.data.newRoleColor }]);
+    this.setData({ newActivityRoles: roles, newRoleName: '' });
+  },
+
+  removeNewRole: function (e) {
+    var idx = e.currentTarget.dataset.index;
+    var roles = this.data.newActivityRoles.slice();
+    if (roles.length <= 1) {
+      wx.showToast({ title: '至少保留一个角色', icon: 'none' });
+      return;
+    }
+    roles.splice(idx, 1);
+    this.setData({ newActivityRoles: roles });
+  },
+
+  submitCreateActivity: async function () {
+    var name = (this.data.newActivityName || '').trim();
+    if (!name) {
+      wx.showToast({ title: '请输入活动名称', icon: 'none' });
+      return;
+    }
+    if (this.data.newActivityStartHour > this.data.newActivityEndHour) {
+      wx.showToast({ title: '开始时间不能晚于结束时间', icon: 'none' });
+      return;
+    }
+    if (this.data.newActivityRoles.length === 0) {
+      wx.showToast({ title: '至少需要一个角色', icon: 'none' });
+      return;
+    }
+
+    this.setData({ actionLoading: true });
+    try {
+      var res = await wx.cloud.callFunction({
+        name: 'api',
+        data: {
+          action: 'createActivity',
+          activityName: name,
+          maxPerCar: this.data.newActivityMaxPerCar,
+          startHour: this.data.newActivityStartHour,
+          endHour: this.data.newActivityEndHour,
+          roles: this.data.newActivityRoles
+        }
+      });
+      if (res.result && res.result.success) {
+        wx.showToast({ title: '活动已创建' });
+        this.setData({ showCreateActivityModal: false });
+        await this.loadActivities();
+        // Switch to the newly created activity
+        if (res.result.activityId) {
+          var config = this.data.activities.find(function(a) { return a.id === res.result.activityId; });
+          if (config) {
+            this.setData({
+              selectedActivity: res.result.activityId,
+              currentActivityConfig: config,
+              expandedSlots: {}
+            });
+          }
+        }
+        await this.loadSlots();
+      } else {
+        wx.showToast({ title: (res.result && res.result.message) || '创建失败', icon: 'none' });
+      }
+    } catch (err) {
+      console.error('createActivity failed', err);
+      wx.showToast({ title: '创建失败', icon: 'none' });
+    } finally {
+      this.setData({ actionLoading: false });
+    }
+  },
+
+  // ===== Hour generation from activity config =====
+
+  getActivitySlotHours: function () {
+    var config = this.data.currentActivityConfig;
+    if (!config) return [];
+    var hours = [];
+    for (var h = config.startHour; h <= config.endHour; h++) {
+      hours.push(h);
+    }
+    return hours;
   },
 
   getLocalDisplay: function (pdtHour) {
@@ -144,6 +412,7 @@ Page({
     var dayDate = day.dayDate;
     var dayOfWeek = day.dayOfWeek;
     var allSlots = this.data.allSlots;
+    var SLOT_HOURS = this.getActivitySlotHours();
 
     // Build slotsMap for this day
     var daySlotsMap = {};
@@ -167,8 +436,8 @@ Page({
       options.push({ label: '🎲 随缘', pdtHour: null });
     }
 
-    for (var i = 0; i < SLOT_HOURS_PDT.length; i++) {
-      var pdtHour = SLOT_HOURS_PDT[i];
+    for (var i = 0; i < SLOT_HOURS.length; i++) {
+      var pdtHour = SLOT_HOURS[i];
 
       // Sunday: skip disabled hours
       if (dayOfWeek === 0 && SUNDAY_DISABLED_HOURS.indexOf(pdtHour) >= 0) continue;
@@ -193,16 +462,50 @@ Page({
     return options;
   },
 
+  // ===== Helper: get role color from activity config =====
+
+  getRoleColor: function (roleName) {
+    var config = this.data.currentActivityConfig;
+    if (!config || !config.roles) return '#58a6ff';
+    var role = config.roles.find(function(r) { return r.name === roleName; });
+    return role ? role.color : '#58a6ff';
+  },
+
+  /**
+   * Compute member inline styles for the current slotsMap.
+   * Returns an object keyed by slot hour, then by member openid.
+   */
+  computeMemberStyles: function (slotsMap) {
+    var self = this;
+    var openid = this.data.openid;
+    var styles = {};
+    for (var h in slotsMap) {
+      styles[h] = {};
+      var cars = slotsMap[h].cars;
+      for (var ci = 0; ci < cars.length; ci++) {
+        var car = cars[ci];
+        for (var mi = 0; mi < car.members.length; mi++) {
+          var member = car.members[mi];
+          var color = self.getRoleColor(member.role);
+          var isMe = member.openid === openid;
+          styles[h][member.openid + '_' + ci] = memberStyle(color, isMe);
+        }
+      }
+    }
+    return styles;
+  },
+
   loadSlots: async function () {
     var windowWeekDates = this.data.windowWeekDates;
     var openid = this.data.openid;
     var rollingDays = this.data.rollingDays;
+    var activityType = this.data.selectedActivity;
     try {
       // 每个 weekDate 单独查，兼容新旧 API
       var allResults = await Promise.all(windowWeekDates.map(function(wd) {
         return wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'getSlots', weekDate: wd }
+          data: { action: 'getSlots', weekDate: wd, activityType: activityType }
         });
       }));
 
@@ -282,6 +585,8 @@ Page({
     var selectedWeekDate = day.weekDate;
     var allSlots = this.data.allSlots;
     var slotsMap = {};
+    var config = this.data.currentActivityConfig;
+    var maxPerCar = config ? config.maxPerCar : 10;
 
     for (var i = 0; i < allSlots.length; i++) {
       var slot = allSlots[i];
@@ -298,8 +603,11 @@ Page({
       slotsMap[key].cars.sort(function (a, b) { return a.carIndex - b.carIndex; });
     }
 
+    // Use activity config hours instead of hardcoded SLOT_HOURS_PDT
+    var SLOT_HOURS = this.getActivitySlotHours();
+
     // Rebuild timeSlots for selected day
-    var timeSlots = SLOT_HOURS_PDT.map(function (pdtHour) {
+    var timeSlots = SLOT_HOURS.map(function (pdtHour) {
       var local = pdtToLocal(dayDate, pdtHour);
       return {
         pdtHour: pdtHour,
@@ -315,7 +623,7 @@ Page({
       var d = slotsMap[ts.pdtHour];
       var count = d ? d.totalCount : 0;
       var barH = count === 0 ? 4 : Math.min(count * 8, 120);
-      var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
+      var tier = count === 0 ? 'tier-empty' : count < maxPerCar ? 'tier-low' : count < maxPerCar * 2 ? 'tier-mid' : 'tier-hot';
       return { pdtHour: ts.pdtHour, count: count, barH: barH, tier: tier, label: ts.shortDisplay || ts.display };
     });
 
@@ -326,25 +634,33 @@ Page({
 
     // Build recommendation (find car needing specific role)
     var recommendation = null;
-    if (!myRegistration && windowOpen) {
+    if (!myRegistration && windowOpen && config && config.roles && config.roles.length >= 2) {
       for (var rh in slotsMap) {
         var rdata = slotsMap[rh];
         for (var ci = 0; ci < rdata.cars.length; ci++) {
           var rcar = rdata.cars[ci];
-          if (rcar.full || rcar.count < 5) continue;
-          var oc = 0, lc = 0;
+          if (rcar.full || rcar.count < Math.floor(maxPerCar / 2)) continue;
+          // Count members by role
+          var roleCounts = {};
           for (var mi = 0; mi < rcar.members.length; mi++) {
-            if (rcar.members[mi].role === '霖霖') lc++; else oc++;
+            var rn = rcar.members[mi].role;
+            roleCounts[rn] = (roleCounts[rn] || 0) + 1;
           }
-          var need = null, needCount = 0;
-          if (lc < 3 && oc >= lc + 2) { need = '霖霖'; needCount = 3 - lc; }
-          else if (oc < 5 && lc >= oc) { need = '输出'; needCount = 5 - oc; }
-          if (need && (!recommendation || rcar.count > recommendation.carCount)) {
+          // Find the role with fewest members
+          var minRole = null;
+          var minCount = Infinity;
+          for (var ri = 0; ri < config.roles.length; ri++) {
+            var rc = roleCounts[config.roles[ri].name] || 0;
+            if (rc < minCount) { minCount = rc; minRole = config.roles[ri]; }
+          }
+          var needed = minRole ? Math.ceil(maxPerCar / config.roles.length) - minCount : 0;
+          if (minRole && needed > 0 && (!recommendation || rcar.count > recommendation.carCount)) {
             recommendation = {
               hour: +rh,
               carIndex: rcar.carIndex,
-              neededRole: need,
-              neededCount: needCount,
+              neededRole: minRole.name,
+              neededRoleColor: minRole.color,
+              neededCount: needed,
               carCount: rcar.count,
               display: pdtToLocal(dayDate, +rh).display
             };
@@ -365,13 +681,13 @@ Page({
       var sd = slotsMap[sh];
       slotMeta[sh] = {
         allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
-        isHot: sd.totalCount >= 20,
+        isHot: sd.totalCount >= maxPerCar * 2,
         isPast: isDayPast || (isDayToday && +sh <= pdtCurrentHour)
       };
     }
     // Also mark hours with no slots as past
-    for (var ti = 0; ti < SLOT_HOURS_PDT.length; ti++) {
-      var hr = SLOT_HOURS_PDT[ti];
+    for (var ti = 0; ti < SLOT_HOURS.length; ti++) {
+      var hr = SLOT_HOURS[ti];
       if (!slotMeta[hr]) {
         slotMeta[hr] = {
           allFull: false, isHot: false,
@@ -380,7 +696,21 @@ Page({
       }
     }
 
-    // 检测 recurring 预约状态：用户开了 recurring 但该周还没有 slot
+    // Compute car progress bar widths and count text
+    for (var ch in slotsMap) {
+      var cdata = slotsMap[ch];
+      for (var cci = 0; cci < cdata.cars.length; cci++) {
+        var ccar = cdata.cars[cci];
+        ccar._barWidth = Math.min(ccar.count / maxPerCar * 100, 100);
+        ccar._countText = ccar.count + '/' + maxPerCar;
+        ccar._pctText = Math.round(ccar._barWidth) + '% — ' + (ccar.full ? '已满' : '还差' + (maxPerCar - ccar.count) + '人');
+      }
+    }
+
+    // Compute member inline styles
+    var memberStyles = this.computeMemberStyles(slotsMap);
+
+    // 检测 recurring 预约状态
     var recurringPending = false;
     var recurringPendingDisplay = '';
     if (!myRegistration && this.data.isRecurring && this.data.recurringHour != null && this.data.recurringDay != null) {
@@ -400,7 +730,8 @@ Page({
       myRegistration: myRegistration,
       selectedDayWindowOpen: windowOpen,
       recurringPending: recurringPending,
-      recurringPendingDisplay: recurringPendingDisplay
+      recurringPendingDisplay: recurringPendingDisplay,
+      memberStyles: memberStyles
     });
   },
 
@@ -429,7 +760,10 @@ Page({
   addProxyToList: function () {
     var name = (this.data.proxyNameInput || '').trim().slice(0, 12);
     if (!name) { wx.showToast({ title: '请输入名字', icon: 'none' }); return; }
-    var role = this.data.proxyRoleIndex === 1 ? '霖霖' : '输出';
+    var config = this.data.currentActivityConfig;
+    var roles = config ? config.roles : [];
+    var roleIdx = this.data.proxyRoleIndex;
+    var role = roles[roleIdx] ? roles[roleIdx].name : '输出';
     var list = this.data.proxyList.concat([{ nickname: name, role: role }]);
     this.setData({ proxyList: list, proxyNameInput: '' });
   },
@@ -695,7 +1029,8 @@ Page({
         hour: pdtHour,
         nickname: nickname,
         role: role,
-        recurring: recurring
+        recurring: recurring,
+        activityType: this.data.selectedActivity
       };
 
       // 合并弹窗 extras + header proxyList
@@ -772,7 +1107,7 @@ Page({
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'leave', weekDate: myReg.weekDate }
+        data: { action: 'leave', weekDate: myReg.weekDate, activityType: this.data.selectedActivity }
       });
 
       if (res.result.success) {
@@ -825,7 +1160,14 @@ Page({
     try {
       var res = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'move', weekDate: myReg.weekDate, targetHour: targetPdtHour, targetDayDate: targetDay.dayDate, nickname: nickname }
+        data: {
+          action: 'move',
+          weekDate: myReg.weekDate,
+          targetHour: targetPdtHour,
+          targetDayDate: targetDay.dayDate,
+          nickname: nickname,
+          activityType: this.data.selectedActivity
+        }
       });
 
       if (res.result.success) {
@@ -868,7 +1210,8 @@ Page({
           action: 'removeProxy',
           weekDate: selectedWeekDate,
           slotId: slotId,
-          memberOpenid: memberOpenid
+          memberOpenid: memberOpenid,
+          activityType: this.data.selectedActivity
         }
       });
 
@@ -897,13 +1240,12 @@ Page({
         return;
       }
       var hour = myReg.hour;
-      // 找到报名日的 dayOfWeek
       var regDay = this.data.rollingDays.find(function(d) { return d.dayDate === myReg.dayDate; });
       var dayOfWeek = regDay ? regDay.dayOfWeek : 0;
       try {
         await wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'setRecurring', hour: hour, day: dayOfWeek }
+          data: { action: 'setRecurring', hour: hour, day: dayOfWeek, activityType: this.data.selectedActivity }
         });
         this.setData({
           isRecurring: true,
@@ -919,7 +1261,7 @@ Page({
       try {
         await wx.cloud.callFunction({
           name: 'api',
-          data: { action: 'setRecurring', hour: null, day: null }
+          data: { action: 'setRecurring', hour: null, day: null, activityType: this.data.selectedActivity }
         });
         this.setData({
           isRecurring: false,
@@ -963,6 +1305,15 @@ Page({
     } catch (err) {
       wx.showToast({ title: '订阅失败', icon: 'none' });
     }
+  },
+
+  // ===== Hour display helper for create activity modal =====
+
+  formatHour12: function (h) {
+    if (h === 0) return '12AM';
+    if (h < 12) return h + 'AM';
+    if (h === 12) return '12PM';
+    return (h - 12) + 'PM';
   },
 
   // ===== 工具 =====

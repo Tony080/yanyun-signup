@@ -4,6 +4,35 @@ const db = cloud.database();
 const _ = db.command;
 const { getSecrets } = require('./config');
 
+// ===== 活动配置缓存 =====
+
+var DEFAULT_ACTIVITY_TYPE = 'a1b2c3d4';
+
+let _activitiesCache = null;
+let _activitiesCacheTime = 0;
+
+async function loadActivities() {
+  if (_activitiesCache && Date.now() - _activitiesCacheTime < 300000) return _activitiesCache;
+  var res = await db.collection('config').where({ type: 'activities' }).limit(1).get();
+  _activitiesCache = res.data.length > 0 ? res.data[0].activities : [];
+  _activitiesCacheTime = Date.now();
+  return _activitiesCache;
+}
+
+function getActivityConfig(activities, activityType) {
+  var act = activities.find(function(a) { return a.id === activityType; });
+  return act || { id: activityType, name: activityType, maxPerCar: 10, startHour: 12, endHour: 22, roles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}] };
+}
+
+function generateId() {
+  var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  var id = '';
+  for (var i = 0; i < 8; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
 // ===== 路由 =====
 
 exports.main = async (event) => {
@@ -13,7 +42,8 @@ exports.main = async (event) => {
 
   const handlers = {
     getSlots, join, quickJoin, createTeam, leave, move,
-    updateNickname, setRecurring, removeProxy
+    updateNickname, setRecurring, removeProxy,
+    getActivities, createActivity
   };
   const adminHandlers = { adminList, adminRemove, adminBan, adminUnban };
   const allHandlers = Object.assign({}, handlers, adminHandlers);
@@ -26,7 +56,7 @@ exports.main = async (event) => {
     return await adminHandlers[action](params);
   }
 
-  if (action === 'getSlots') {
+  if (action === 'getSlots' || action === 'getActivities' || action === 'createActivity') {
     return await handlers[action](openid, params);
   }
 
@@ -50,9 +80,51 @@ exports.main = async (event) => {
   }
 };
 
+// ===== 获取活动列表 =====
+
+async function getActivities(openid, params) {
+  var activities = await loadActivities();
+  return { success: true, activities: activities };
+}
+
+// ===== 创建活动 =====
+
+async function createActivity(openid, { name, maxPerCar, startHour, endHour, roles }) {
+  var activities = await loadActivities();
+  var newId = generateId();
+
+  var newActivity = {
+    id: newId,
+    name: name || '新活动',
+    maxPerCar: maxPerCar || 10,
+    startHour: startHour != null ? startHour : 12,
+    endHour: endHour != null ? endHour : 22,
+    roles: roles || [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}]
+  };
+
+  var configRes = await db.collection('config').where({ type: 'activities' }).limit(1).get();
+  if (configRes.data.length > 0) {
+    var updated = configRes.data[0].activities || [];
+    updated.push(newActivity);
+    await db.collection('config').doc(configRes.data[0]._id).update({
+      data: { activities: updated }
+    });
+  } else {
+    await db.collection('config').add({
+      data: { type: 'activities', activities: [newActivity] }
+    });
+  }
+
+  // Invalidate cache
+  _activitiesCache = null;
+  _activitiesCacheTime = 0;
+
+  return { success: true, activity: newActivity };
+}
+
 // ===== 获取报名数据 =====
 
-async function getSlots(openid, { weekDate, weekDates, dayDate }) {
+async function getSlots(openid, { weekDate, weekDates, dayDate, activityType }) {
   // 支持多 weekDate 查询（滚动窗口）
   var targetWeekDates = weekDates || (weekDate ? [weekDate] : []);
   if (targetWeekDates.length === 0) {
@@ -66,6 +138,11 @@ async function getSlots(openid, { weekDate, weekDates, dayDate }) {
     query = { weekDate: _.in(targetWeekDates) };
   }
   if (dayDate) query.dayDate = dayDate;
+
+  // 向后兼容：如果 activityType 有值，则按 activityType 过滤；否则返回所有（兼容旧客户端）
+  if (activityType) {
+    query.activityType = activityType;
+  }
 
   var res = await db.collection('slots')
     .where(query)
@@ -87,7 +164,11 @@ async function join(openid, params) {
 
 // ===== 快速加入 =====
 
-async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers }) {
+async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers, activityType }) {
+  var activities = await loadActivities();
+  activityType = activityType || (activities.length > 0 ? activities[0].id : DEFAULT_ACTIVITY_TYPE);
+  var config = getActivityConfig(activities, activityType);
+
   role = role || '输出';
   dayDate = dayDate || weekDate; // 向后兼容
 
@@ -96,9 +177,10 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     return { success: false, message: '该周期的报名窗口尚未开放或已关闭' };
   }
 
-  // 检查本周是否已报名（跨所有天）
+  // 检查本周是否已报名（跨所有天，同一活动类型内）
+  var existingQuery = { weekDate, activityType: activityType, members: _.elemMatch({ openid }) };
   var existing = await db.collection('slots')
-    .where({ weekDate, members: _.elemMatch({ openid }) })
+    .where(existingQuery)
     .get();
   if (existing.data.length > 0) {
     return { success: false, message: '你本周已报名，请使用挪动切换时段' };
@@ -123,10 +205,10 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
   var resultHour;
 
   if (hour != null) {
-    targetCar = await findBestCar(weekDate, dayDate, hour);
+    targetCar = await findBestCar(weekDate, dayDate, hour, activityType, config.maxPerCar);
     resultHour = hour;
   } else {
-    targetCar = await findBestCarAnyHour(weekDate, dayDate);
+    targetCar = await findBestCarAnyHour(weekDate, dayDate, activityType, config.maxPerCar);
     if (targetCar) {
       resultHour = targetCar.hour;
     } else {
@@ -134,11 +216,11 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
       var pdtNow = getPDTNow();
       var todayDate = formatDateStr(pdtNow);
       var isSun = getDayIndex(weekDate, dayDate) === 0;
-      var defaultHour = isSun ? 14 : 12;
+      var defaultHour = isSun ? 14 : config.startHour;
       if (dayDate === todayDate) {
         var ch = pdtNow.getHours();
-        var startH = isSun ? 14 : 12;
-        for (var hh = startH; hh <= 22; hh++) { if (hh > ch) { defaultHour = hh; break; } }
+        var startH = isSun ? 14 : config.startHour;
+        for (var hh = startH; hh <= config.endHour; hh++) { if (hh > ch) { defaultHour = hh; break; } }
       }
       resultHour = defaultHour;
     }
@@ -156,7 +238,7 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     });
   }
 
-  var result = await addMembersToCar(weekDate, dayDate, resultHour, targetCar, allMembers, null);
+  var result = await addMembersToCar(weekDate, dayDate, resultHour, targetCar, allMembers, null, activityType, config.maxPerCar);
 
   await saveUserRole(openid, role);
 
@@ -169,7 +251,7 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
     var nextWeek = getNextSunday(currentWeek);
     var userRes2 = await db.collection('users').where({ openid }).get();
     if (userRes2.data.length > 0) {
-      await immediateRegister(userRes2.data[0], nextWeek, resultHour, dayIndex);
+      await immediateRegister(userRes2.data[0], nextWeek, resultHour, dayIndex, activityType, config.maxPerCar);
     }
   } else if (recurring === false) {
     await clearUserRecurring(openid);
@@ -180,7 +262,11 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
 
 // ===== 创建车队 =====
 
-async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers }) {
+async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, recurring, extraMembers, activityType }) {
+  var activities = await loadActivities();
+  activityType = activityType || (activities.length > 0 ? activities[0].id : DEFAULT_ACTIVITY_TYPE);
+  var config = getActivityConfig(activities, activityType);
+
   role = role || '输出';
   dayDate = dayDate || weekDate;
 
@@ -203,8 +289,9 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
     return { success: false, message: '周日 12PM-1PM 不可报名' };
   }
 
+  var existingQuery = { weekDate, activityType: activityType, members: _.elemMatch({ openid }) };
   var existing = await db.collection('slots')
-    .where({ weekDate, members: _.elemMatch({ openid }) })
+    .where(existingQuery)
     .get();
   if (existing.data.length > 0) {
     return { success: false, message: '你本周已报名，请先退出再创建车队' };
@@ -222,7 +309,7 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
     });
   }
 
-  var result = await addMembersToCar(weekDate, dayDate, hour, null, allMembers, openid);
+  var result = await addMembersToCar(weekDate, dayDate, hour, null, allMembers, openid, activityType, config.maxPerCar);
 
   await saveUserRole(openid, role);
 
@@ -235,7 +322,7 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
     var nextWeek3 = getNextSunday(currentWeek3);
     var userRes3 = await db.collection('users').where({ openid }).get();
     if (userRes3.data.length > 0) {
-      await immediateRegister(userRes3.data[0], nextWeek3, hour, dayIndex);
+      await immediateRegister(userRes3.data[0], nextWeek3, hour, dayIndex, activityType, config.maxPerCar);
     }
   } else if (recurring === false) {
     await clearUserRecurring(openid);
@@ -246,9 +333,14 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
 
 // ===== 退出 =====
 
-async function leave(openid, { weekDate }) {
+async function leave(openid, { weekDate, activityType }) {
+  var leaveQuery = { weekDate, members: _.elemMatch({ openid }) };
+  if (activityType) {
+    leaveQuery.activityType = activityType;
+  }
+
   var existing = await db.collection('slots')
-    .where({ weekDate, members: _.elemMatch({ openid }) })
+    .where(leaveQuery)
     .get();
 
   if (existing.data.length === 0) {
@@ -277,7 +369,11 @@ async function leave(openid, { weekDate }) {
 
 // ===== 挪动（支持跨天） =====
 
-async function move(openid, { weekDate, targetHour, targetDayDate, nickname, role }) {
+async function move(openid, { weekDate, targetHour, targetDayDate, nickname, role, activityType }) {
+  var activities = await loadActivities();
+  activityType = activityType || (activities.length > 0 ? activities[0].id : DEFAULT_ACTIVITY_TYPE);
+  var config = getActivityConfig(activities, activityType);
+
   targetDayDate = targetDayDate || weekDate;
 
   // 检查报名窗口是否开放
@@ -285,8 +381,9 @@ async function move(openid, { weekDate, targetHour, targetDayDate, nickname, rol
     return { success: false, message: '该周期的报名窗口已关闭，无法挪动' };
   }
 
+  var moveQuery = { weekDate, activityType: activityType, members: _.elemMatch({ openid }) };
   var existing = await db.collection('slots')
-    .where({ weekDate, members: _.elemMatch({ openid }) })
+    .where(moveQuery)
     .get();
 
   if (existing.data.length === 0) {
@@ -326,23 +423,28 @@ async function move(openid, { weekDate, targetHour, targetDayDate, nickname, rol
     await setUserRecurring(openid, targetHour, dayIndex);
   }
 
-  var targetCar = await findBestCar(weekDate, targetDayDate, targetHour);
+  var targetCar = await findBestCar(weekDate, targetDayDate, targetHour, activityType, config.maxPerCar);
   var allToMove = [{ openid: openid, nickname: nickname || myMember.nickname, role: myRole, registeredBy: null }];
   myMembers.forEach(function(m) {
     if (m.openid !== openid) {
       allToMove.push({ openid: m.openid, nickname: m.nickname, role: m.role, registeredBy: openid });
     }
   });
-  var result = await addMembersToCar(weekDate, targetDayDate, targetHour, targetCar, allToMove, null);
+  var result = await addMembersToCar(weekDate, targetDayDate, targetHour, targetCar, allToMove, null, activityType, config.maxPerCar);
 
   return { success: true, hour: targetHour, dayDate: targetDayDate, carIndex: result.carIndex };
 }
 
 // ===== 移除代报名 =====
 
-async function removeProxy(openid, { weekDate, targetOpenid }) {
+async function removeProxy(openid, { weekDate, targetOpenid, activityType }) {
+  var removeQuery = { weekDate, members: _.elemMatch({ openid: targetOpenid }) };
+  if (activityType) {
+    removeQuery.activityType = activityType;
+  }
+
   var existing = await db.collection('slots')
-    .where({ weekDate, members: _.elemMatch({ openid: targetOpenid }) })
+    .where(removeQuery)
     .get();
 
   if (existing.data.length === 0) {
@@ -356,13 +458,17 @@ async function removeProxy(openid, { weekDate, targetOpenid }) {
     return { success: false, message: '只能移除自己代报的人' };
   }
 
+  var activities = await loadActivities();
+  var slotActivityType = slot.activityType || DEFAULT_ACTIVITY_TYPE;
+  var config = getActivityConfig(activities, slotActivityType);
+
   var newMembers = slot.members.filter(function(m) { return m.openid !== targetOpenid; });
 
   if (newMembers.length === 0) {
     await db.collection('slots').doc(slot._id).remove();
   } else {
     await db.collection('slots').doc(slot._id).update({
-      data: { members: newMembers, count: newMembers.length, full: newMembers.length >= 10 }
+      data: { members: newMembers, count: newMembers.length, full: newMembers.length >= config.maxPerCar }
     });
   }
 
@@ -371,9 +477,14 @@ async function removeProxy(openid, { weekDate, targetOpenid }) {
 
 // ===== 核心工具：查找最佳车 =====
 
-async function findBestCar(weekDate, dayDate, hour) {
+async function findBestCar(weekDate, dayDate, hour, activityType, maxPerCar) {
+  var query = { weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) };
+  if (activityType) {
+    query.activityType = activityType;
+  }
+
   var cars = await db.collection('slots')
-    .where({ weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) })
+    .where(query)
     .orderBy('count', 'desc')
     .limit(20)
     .get();
@@ -384,9 +495,14 @@ async function findBestCar(weekDate, dayDate, hour) {
   return cars.data[0];
 }
 
-async function findBestCarAnyHour(weekDate, dayDate) {
+async function findBestCarAnyHour(weekDate, dayDate, activityType, maxPerCar) {
+  var query = { weekDate, dayDate: dayDate, full: _.neq(true) };
+  if (activityType) {
+    query.activityType = activityType;
+  }
+
   var cars = await db.collection('slots')
-    .where({ weekDate, dayDate: dayDate, full: _.neq(true) })
+    .where(query)
     .orderBy('count', 'desc')
     .limit(20)
     .get();
@@ -408,13 +524,15 @@ async function findBestCarAnyHour(weekDate, dayDate) {
 }
 
 // 把多个成员加入车（处理溢出到新车）
-async function addMembersToCar(weekDate, dayDate, hour, targetCar, members, leader) {
+async function addMembersToCar(weekDate, dayDate, hour, targetCar, members, leader, activityType, maxPerCar) {
+  maxPerCar = maxPerCar || 10;
+  activityType = activityType || DEFAULT_ACTIVITY_TYPE;
   var firstCarIndex = null;
 
   for (var i = 0; i < members.length; i++) {
     var m = members[i];
 
-    if (targetCar && targetCar.count < 10) {
+    if (targetCar && targetCar.count < maxPerCar) {
       var newCount = targetCar.count + 1;
       await db.collection('slots').doc(targetCar._id).update({
         data: {
@@ -424,19 +542,19 @@ async function addMembersToCar(weekDate, dayDate, hour, targetCar, members, lead
             joinedAt: db.serverDate()
           }),
           count: newCount,
-          full: newCount >= 10
+          full: newCount >= maxPerCar
         }
       });
       targetCar.count = newCount;
       if (firstCarIndex === null) firstCarIndex = targetCar.carIndex;
 
-      if (newCount >= 10) {
+      if (newCount >= maxPerCar) {
         await onCarFull(weekDate, hour, targetCar.carIndex + 1, []);
         targetCar = null;
       }
     } else {
       var allCars = await db.collection('slots')
-        .where({ weekDate, dayDate: dayDate, hour })
+        .where({ weekDate, dayDate: dayDate, hour, activityType: activityType })
         .orderBy('carIndex', 'desc')
         .limit(1)
         .get();
@@ -444,6 +562,7 @@ async function addMembersToCar(weekDate, dayDate, hour, targetCar, members, lead
 
       var newCarData = {
         weekDate: weekDate, dayDate: dayDate, hour: hour, carIndex: newCarIndex,
+        activityType: activityType,
         members: [{
           openid: m.openid, nickname: m.nickname,
           role: m.role || '输出', registeredBy: m.registeredBy || null,
@@ -488,7 +607,11 @@ async function updateNickname(openid, { nickname }) {
 
 // ===== 设置/取消每周自动报名 =====
 
-async function setRecurring(openid, { hour, day }) {
+async function setRecurring(openid, { hour, day, activityType }) {
+  var activities = await loadActivities();
+  activityType = activityType || (activities.length > 0 ? activities[0].id : DEFAULT_ACTIVITY_TYPE);
+  var config = getActivityConfig(activities, activityType);
+
   if (hour != null) {
     var dayIndex = day != null ? day : 0;
     await setUserRecurring(openid, hour, dayIndex);
@@ -501,8 +624,8 @@ async function setRecurring(openid, { hour, day }) {
       var currentWeek = getCurrentSunday(pdtNow);
       var nextWeek = getNextSunday(currentWeek);
 
-      await immediateRegister(u, currentWeek, hour, dayIndex);
-      await immediateRegister(u, nextWeek, hour, dayIndex);
+      await immediateRegister(u, currentWeek, hour, dayIndex, activityType, config.maxPerCar);
+      await immediateRegister(u, nextWeek, hour, dayIndex, activityType, config.maxPerCar);
     }
   } else {
     await clearUserRecurring(openid);
@@ -511,19 +634,22 @@ async function setRecurring(openid, { hour, day }) {
 }
 
 // 立即为用户注册某一周（幂等：已注册则跳过）
-async function immediateRegister(user, weekDate, hour, dayIndex) {
+async function immediateRegister(user, weekDate, hour, dayIndex, activityType, maxPerCar) {
+  activityType = activityType || DEFAULT_ACTIVITY_TYPE;
+  maxPerCar = maxPerCar || 10;
   var dayDate = getDayDate(weekDate, dayIndex);
 
-  // 已注册则跳过
+  // 已注册则跳过（同活动类型内）
+  var existingQuery = { weekDate: weekDate, activityType: activityType, members: _.elemMatch({ openid: user.openid }) };
   var existing = await db.collection('slots')
-    .where({ weekDate: weekDate, members: _.elemMatch({ openid: user.openid }) })
+    .where(existingQuery)
     .limit(1)
     .get();
   if (existing.data.length > 0) return;
 
   // 找 count 最大的非满车
   var cars = await db.collection('slots')
-    .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, full: _.neq(true) })
+    .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, activityType: activityType, full: _.neq(true) })
     .orderBy('count', 'desc')
     .limit(1)
     .get();
@@ -538,12 +664,12 @@ async function immediateRegister(user, weekDate, hour, dayIndex) {
           role: user.role || '输出', joinedAt: db.serverDate()
         }),
         count: newCount,
-        full: newCount >= 10
+        full: newCount >= maxPerCar
       }
     });
   } else {
     var allCars = await db.collection('slots')
-      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour })
+      .where({ weekDate: weekDate, dayDate: dayDate, hour: hour, activityType: activityType })
       .orderBy('carIndex', 'desc')
       .limit(1)
       .get();
@@ -553,6 +679,7 @@ async function immediateRegister(user, weekDate, hour, dayIndex) {
       data: {
         weekDate: weekDate, dayDate: dayDate, hour: hour,
         carIndex: newCarIndex,
+        activityType: activityType,
         members: [{ openid: user.openid, nickname: user.nickname, role: user.role || '输出', joinedAt: db.serverDate() }],
         count: 1, full: false, leader: null,
         createdAt: db.serverDate()
@@ -560,7 +687,7 @@ async function immediateRegister(user, weekDate, hour, dayIndex) {
     });
   }
 
-  console.log('[即时注册] ' + user.nickname + ' → ' + weekDate + ' ' + dayDate + ' ' + hour + ':00');
+  console.log('[即时注册] ' + user.nickname + ' → ' + weekDate + ' ' + dayDate + ' ' + hour + ':00 [' + activityType + ']');
 }
 
 // ===== 内部工具 =====

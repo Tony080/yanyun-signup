@@ -3,7 +3,7 @@
   <view class="header">
     <view class="title-row">
       <text class="title">燕云十六声</text>
-      <text class="subtitle">百业十人本报名</text>
+      <text class="subtitle">{{currentActivityConfig.name || '百业十人本报名'}}</text>
     </view>
     <view class="week-badge">{{weekLabel}}</view>
     <view class="pdt-note">{{pdtLabel}}</view>
@@ -14,15 +14,26 @@
              placeholder="输入角色名" maxlength="12" />
       <view class="save-btn" bindtap="saveNickname"
             wx:if="{{nicknameInput !== nickname}}">保存</view>
-      <view class="role-selector">
-        <view class="role-dot output {{preferredRole === '输出' ? 'active' : ''}}"
-              bindtap="setPreferredRole" data-role="输出">🔵 输出</view>
-        <view class="role-dot linlin {{preferredRole === '霖霖' ? 'active' : ''}}"
-              bindtap="setPreferredRole" data-role="霖霖">🟢 霖霖</view>
+      <view class="role-selector" wx:if="{{currentActivityConfig.roles}}">
+        <view class="role-dot {{preferredRole === item.name ? 'active' : ''}}"
+              style="background: rgba({{item._r}},{{item._g}},{{item._b}},0.1); color: {{item.color}}; {{preferredRole === item.name ? 'border-color:' + item.color + ';background:rgba(' + item._r + ',' + item._g + ',' + item._b + ',0.2)' : ''}}"
+              wx:for="{{currentActivityConfig.roles}}" wx:key="name"
+              bindtap="setPreferredRole" data-role="{{item.name}}">
+          {{item.name}}
+        </view>
       </view>
     </view>
-    <view class="header-rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</view>
+    <view class="header-rules">每周期限报一个时段 · {{currentActivityConfig.maxPerCar || 10}}人满开新车 · 时间已转为本地时区</view>
   </view>
+
+  <!-- Activity selector bar -->
+  <scroll-view scroll-x class="activity-bar" wx:if="{{activities.length > 0}}">
+    <view class="activity-item {{item.id === selectedActivity ? 'active' : ''}}"
+          wx:for="{{activities}}" wx:key="id" bindtap="switchActivity" data-id="{{item.id}}">
+      {{item.name}}
+    </view>
+    <view class="activity-add" bindtap="showCreateActivity">+ 新建</view>
+  </scroll-view>
 
   <!-- 我的状态卡片（增强版） -->
   <view class="status-card" wx:if="{{myRegistration}}">
@@ -107,9 +118,10 @@
   <view class="recommend-card" wx:if="{{!myRegistration && recommendation}}">
     <text class="recommend-badge">💡 推荐加入</text>
     <text class="recommend-text">{{recommendation.display}} — 缺{{recommendation.neededCount}}名{{recommendation.neededRole}}!</text>
-    <text class="recommend-detail">第{{recommendation.carIndex + 1}}车: {{recommendation.carCount}}/10</text>
-    <view class="recommend-btn" bindtap="joinRecommend">
-      以{{recommendation.neededRole === '霖霖' ? '🟢霖霖' : '🔵输出'}}加入
+    <text class="recommend-detail">第{{recommendation.carIndex + 1}}车: {{recommendation.carCount}}/{{currentActivityConfig.maxPerCar || 10}}</text>
+    <view class="recommend-btn" bindtap="joinRecommend"
+          style="background: {{recommendation.neededRoleColor || '#238636'}}; color: #fff">
+      以{{recommendation.neededRole}}加入
     </view>
   </view>
 
@@ -140,7 +152,7 @@
           <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate}}">当前</text>
         </view>
         <view class="slot-row-right" catchtap="preventBubble">
-          <!-- Join / Create / Move buttons — 已过时段或窗口未开放时不显示 -->
+          <!-- Join / Create / Move buttons -->
           <view class="action-btn join-btn" catchtap="handleSlotJoin"
                 data-hour="{{slot.pdtHour}}"
                 wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
@@ -166,18 +178,18 @@
                 wx:for="{{slotsMap[slot.pdtHour].cars}}" wx:key="carIndex" wx:for-item="car">
             <view class="car-top">
               <text class="car-name">第{{car.carIndex + 1}}车{{car.leaderNick ? ' 👑' + car.leaderNick : ''}}</text>
-              <text class="car-count">{{car.count}}/10</text>
+              <text class="car-count">{{car._countText}}</text>
             </view>
             <view class="car-bar">
               <view class="car-bar-fill {{car.full ? 'bar-full' : ''}}"
-                    style="width: {{car.count * 10}}%"></view>
+                    style="width: {{car._barWidth}}%"></view>
             </view>
-            <text class="car-bar-text {{car.full ? 'bar-full-text' : ''}}">{{car.count * 10}}% — {{car.full ? '已满' : '还差' + (10 - car.count) + '人'}}</text>
+            <text class="car-bar-text {{car.full ? 'bar-full-text' : ''}}">{{car._pctText}}</text>
             <view class="members">
               <!-- Leader first -->
               <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
                 <view class="member-wrap" wx:if="{{member.isLeader}}">
-                  <view class="member member-leader {{member.openid === openid ? 'member-me-leader' : ''}} {{member.role === '霖霖' ? 'role-linlin-leader' : 'role-output-leader'}}">
+                  <view class="member member-leader {{member.openid === openid ? 'member-me-leader' : ''}}">
                     👑 {{member.nickname}}
                   </view>
                 </view>
@@ -185,7 +197,8 @@
               <!-- Regular + proxy members -->
               <block wx:for="{{car.members}}" wx:key="openid" wx:for-item="member">
                 <view class="member-wrap" wx:if="{{!member.isLeader}}">
-                  <view class="member {{member.openid === openid ? 'member-me' : ''}} {{member.role === '霖霖' ? 'role-linlin' : 'role-output'}} {{member.registeredBy ? 'member-proxy' : ''}}">
+                  <view class="member {{member.registeredBy ? 'member-proxy' : ''}}"
+                        style="{{memberStyles[slot.pdtHour][member.openid + '_' + car.carIndex] || ''}}">
                     {{member.nickname}}{{member.registeredBy ? '*' : ''}}
                     <text class="proxy-remove"
                           wx:if="{{member.registeredBy === openid}}"
@@ -222,8 +235,6 @@
     </view>
   </view>
 
-  <!-- 规则已移到 header -->
-
   <!-- ===== 报名弹窗 ===== -->
   <view class="modal-overlay" wx:if="{{showSignupModal}}" bindtap="closeSignupModal">
     <view class="modal-card" catchtap="preventBubble">
@@ -257,17 +268,15 @@
         </picker>
       </view>
 
-      <!-- Role selection -->
+      <!-- Role selection (dynamic from activity config) -->
       <view class="modal-row">
         <text class="modal-label">职业</text>
         <view class="role-buttons">
-          <view class="role-btn {{signupRole === '输出' ? 'role-btn-output-active' : 'role-btn-output'}}"
-                bindtap="selectRole" data-role="输出">
-            🔵 输出
-          </view>
-          <view class="role-btn {{signupRole === '霖霖' ? 'role-btn-linlin-active' : 'role-btn-linlin'}}"
-                bindtap="selectRole" data-role="霖霖">
-            🟢 霖霖
+          <view wx:for="{{currentActivityConfig.roles}}" wx:key="name"
+                class="role-btn {{signupRole === item.name ? 'role-active' : ''}}"
+                style="color: {{item.color}}; border-color: {{signupRole === item.name ? item.color : 'transparent'}};{{signupRole === item.name ? 'background:rgba(255,255,255,0.08)' : ''}}"
+                bindtap="selectRole" data-role="{{item.name}}">
+            {{item.name}}
           </view>
         </view>
       </view>
@@ -284,9 +293,9 @@
       <view class="modal-section">
         <text class="modal-section-title">帮别人一起报名（可选）</text>
         <view class="extra-tags" wx:if="{{proxyList.length > 0}}">
-          <view class="extra-tag {{item.role === '霖霖' ? 'extra-tag-linlin' : 'extra-tag-output'}}"
+          <view class="extra-tag"
                 wx:for="{{proxyList}}" wx:key="index">
-            {{item.nickname}} {{item.role === '霖霖' ? '🟢' : '🔵'}}
+            {{item.nickname}} ({{item.role}})
             <text class="extra-remove" catchtap="removeProxyFromList" data-index="{{index}}">×</text>
           </view>
         </view>
@@ -294,8 +303,8 @@
           <input class="proxy-name-input" placeholder="朋友名字" maxlength="12"
                  value="{{proxyNameInput}}" bindinput="onProxyNameInput" />
           <picker class="proxy-role-picker" bindchange="onProxyRoleChange"
-                  range="{{['🔵 输出', '🟢 霖霖']}}" value="{{proxyRoleIndex}}">
-            <view class="proxy-role-display">{{proxyRoleIndex === 1 ? '🟢 霖霖' : '🔵 输出'}}</view>
+                  range="{{currentActivityConfig.roles}}" range-key="name" value="{{proxyRoleIndex}}">
+            <view class="proxy-role-display">{{currentActivityConfig.roles[proxyRoleIndex].name}}</view>
           </picker>
           <view class="proxy-add-btn" bindtap="addProxyToList">+</view>
         </view>
@@ -306,6 +315,83 @@
         <view class="modal-cancel-btn" bindtap="closeSignupModal">取消</view>
         <view class="modal-confirm-btn {{actionLoading ? 'btn-disabled' : ''}}" bindtap="submitSignup">
           {{signupMode === 'quick' ? '加入' : '创建车队'}}
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ===== 创建活动弹窗 ===== -->
+  <view class="modal-overlay" wx:if="{{showCreateActivityModal}}" bindtap="closeCreateActivity">
+    <view class="modal-card create-activity-card" catchtap="preventBubble">
+      <view class="modal-title">新建活动</view>
+
+      <!-- Activity name -->
+      <view class="modal-row">
+        <text class="modal-label">名称</text>
+        <input class="modal-input" placeholder="活动名称（必填）" maxlength="20"
+               value="{{newActivityName}}" bindinput="onNewActivityNameInput" />
+      </view>
+
+      <!-- Max per car -->
+      <view class="modal-row">
+        <text class="modal-label">人数</text>
+        <input class="modal-input modal-input-short" type="number" placeholder="每车人数"
+               value="{{newActivityMaxPerCar}}" bindinput="onNewActivityMaxInput" />
+        <text class="modal-hint-text">人/车</text>
+      </view>
+
+      <!-- Start hour -->
+      <view class="modal-row">
+        <text class="modal-label">开始</text>
+        <picker mode="selector" range="{{[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]}}"
+                value="{{newActivityStartHour}}" bindchange="onStartHourChange">
+          <view class="modal-picker">
+            {{newActivityStartHour < 12 ? (newActivityStartHour === 0 ? '12AM' : newActivityStartHour + 'AM') : (newActivityStartHour === 12 ? '12PM' : (newActivityStartHour - 12) + 'PM')}}
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- End hour -->
+      <view class="modal-row">
+        <text class="modal-label">结束</text>
+        <picker mode="selector" range="{{[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]}}"
+                value="{{newActivityEndHour}}" bindchange="onEndHourChange">
+          <view class="modal-picker">
+            {{newActivityEndHour < 12 ? (newActivityEndHour === 0 ? '12AM' : newActivityEndHour + 'AM') : (newActivityEndHour === 12 ? '12PM' : (newActivityEndHour - 12) + 'PM')}}
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- Role editor -->
+      <view class="modal-row-block">
+        <text class="modal-label-block">角色</text>
+        <view class="role-tags">
+          <view class="role-tag" wx:for="{{newActivityRoles}}" wx:key="name"
+                style="color: {{item.color}}; border-color: {{item.color}}">
+            {{item.name}}
+            <text class="role-tag-remove" catchtap="removeNewRole" data-index="{{index}}">×</text>
+          </view>
+        </view>
+        <view class="role-add-row">
+          <input class="role-add-input" placeholder="角色名" maxlength="8"
+                 value="{{newRoleName}}" bindinput="onNewRoleNameInput" />
+          <view class="color-palette">
+            <view class="color-dot {{newRoleColor === item ? 'color-dot-active' : ''}}"
+                  wx:for="{{presetColors}}" wx:key="*this"
+                  style="background: {{item}}"
+                  bindtap="selectNewRoleColor" data-color="{{item}}"></view>
+          </view>
+          <view class="role-add-btn" bindtap="addNewRole">+</view>
+        </view>
+      </view>
+
+      <!-- Action buttons -->
+      <view class="modal-actions">
+        <view class="modal-cancel-btn" bindtap="closeCreateActivity">取消</view>
+        <view class="modal-confirm-btn {{actionLoading ? 'btn-disabled' : ''}}" bindtap="submitCreateActivity">
+          创建
         </view>
       </view>
     </view>

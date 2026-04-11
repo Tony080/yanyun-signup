@@ -36,49 +36,64 @@ exports.main = async (event, context) => {
     return { sent: 0 };
   }
 
-  // 构建提醒内容
-  var slots = slotsRes.data.sort(function(a, b) { return a.carIndex - b.carIndex; });
-  var totalPeople = 0;
-  slots.forEach(function(s) { totalPeople += s.count; });
+  // 加载活动配置（用于显示活动名称）
+  var activities = [];
+  try {
+    var actRes = await db.collection('config').where({ type: 'activities' }).limit(1).get();
+    if (actRes.data.length > 0) activities = actRes.data[0].activities;
+  } catch (e) {}
 
-  // ===== Discord 通知 =====
-  await sendDiscordReminder(weekDate, targetHour, slots, totalPeople);
+  // 按活动类型分组
+  var byActivity = {};
+  slotsRes.data.forEach(function(s) {
+    var at = s.activityType || 'a1b2c3d4';
+    if (!byActivity[at]) byActivity[at] = [];
+    byActivity[at].push(s);
+  });
 
-  // ===== 微信订阅消息（可选）=====
-  var wxSent = 0;
-  if (secrets.WX_TMPL_ID && secrets.WX_TMPL_ID !== 'YOUR_SUBSCRIBE_TEMPLATE_ID') {
-    for (var i = 0; i < slots.length; i++) {
-      var slot = slots[i];
-      for (var j = 0; j < slot.members.length; j++) {
-        var m = slot.members[j];
-        // 跳过 Discord 用户（dc_ 开头，没有微信 openid）
-        if (m.openid.startsWith('dc_') || m.openid.startsWith('web_')) continue;
-        try {
-          await cloud.openapi.subscribeMessage.send({
-            touser: m.openid,
-            templateId: secrets.WX_TMPL_ID,
-            page: 'pages/index/index',
-            data: {
-              thing1: { value: '燕云十六声 百业十人本' },
-              time2: { value: weekDate + ' ' + targetHour + ':00 PDT' },
-              thing3: { value: '第' + (slot.carIndex + 1) + '车 10分钟后开车！' }
-            }
-          });
-          wxSent++;
-        } catch (e) {
-          console.warn('[微信通知跳过]', m.nickname, e.errCode || e.message);
+  // 每个活动单独发通知
+  for (var actType in byActivity) {
+    var slots = byActivity[actType].sort(function(a, b) { return a.carIndex - b.carIndex; });
+    var totalPeople = 0;
+    slots.forEach(function(s) { totalPeople += s.count; });
+    var actConfig = activities.find(function(a) { return a.id === actType; });
+    var actName = actConfig ? actConfig.name : '活动';
+
+    await sendDiscordReminder(weekDate, targetHour, slots, totalPeople, actName);
+
+    // 微信订阅消息（可选）
+    if (secrets.WX_TMPL_ID && secrets.WX_TMPL_ID !== 'YOUR_SUBSCRIBE_TEMPLATE_ID') {
+      for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i];
+        for (var j = 0; j < slot.members.length; j++) {
+          var m = slot.members[j];
+          if (m.openid.startsWith('dc_') || m.openid.startsWith('web_')) continue;
+          try {
+            await cloud.openapi.subscribeMessage.send({
+              touser: m.openid,
+              templateId: secrets.WX_TMPL_ID,
+              page: 'pages/index/index',
+              data: {
+                thing1: { value: '燕云十六声 ' + actName },
+                time2: { value: weekDate + ' ' + targetHour + ':00 PDT' },
+                thing3: { value: '第' + (slot.carIndex + 1) + '车 10分钟后开车！' }
+              }
+            });
+          } catch (e) {
+            console.warn('[微信通知跳过]', m.nickname, e.errCode || e.message);
+          }
         }
       }
     }
-  }
+  } // end for actType
 
-  console.log('[提醒完成] Discord已推送, 微信发送:' + wxSent);
-  return { discord: true, wxSent: wxSent };
+  console.log('[提醒完成] Discord + 微信通知已发送');
+  return { discord: true };
 };
 
 // ===== Discord 推送 =====
 
-async function sendDiscordReminder(weekDate, hour, slots, totalPeople) {
+async function sendDiscordReminder(weekDate, hour, slots, totalPeople, actName) {
   var localTime = pdtToLocal(weekDate, hour);
 
   var fields = slots.map(function(car) {
@@ -93,7 +108,7 @@ async function sendDiscordReminder(weekDate, hour, slots, totalPeople) {
   });
 
   var embed = {
-    title: '🚗 百业十人本 10分钟后开车！',
+    title: '🚗 ' + (actName || '百业十人本') + ' 10分钟后开车！',
     description: '🕐 **' + localTime + '**  (PDT ' + hour + ':00)  |  共 ' + totalPeople + ' 人',
     color: 0xf0b429,
     fields: fields,
