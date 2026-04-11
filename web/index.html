@@ -258,7 +258,6 @@ body {
 .member.role-linlin { background: rgba(63,185,80,0.12); color: #7ee787; border-color: rgba(63,185,80,0.25); }
 .member.me.role-output { background: rgba(56,139,253,0.25); border-color: #58a6ff; }
 .member.me.role-linlin { background: rgba(63,185,80,0.25); border-color: #3fb950; }
-.member.leader { background: rgba(240,180,41,0.2); border-color: rgba(240,180,41,0.5); color: #f0b429; }
 .member.proxy.role-output { background: rgba(56,139,253,0.08); color: rgba(121,192,255,0.7); border-color: rgba(56,139,253,0.15); }
 .member.proxy.role-linlin { background: rgba(63,185,80,0.08); color: rgba(126,231,135,0.7); border-color: rgba(63,185,80,0.15); }
 .member .remove-proxy {
@@ -1572,18 +1571,14 @@ function render() {
           var canRemoveProxy = isProxy && m.registeredBy === s.userId;
 
           var classes = 'member';
-          if (isLeader && !isSpecial) classes += ' leader';
           if (isMe) classes += ' me';
           if (isProxy && !isLeader) classes += ' proxy';
 
-          var inlineStyle = '';
-          if (!isLeader || isSpecial) {
-            var bgAlpha = isMe ? 0.25 : (isProxy ? 0.08 : 0.12);
-            var borderAlpha = isMe ? 1 : (isProxy ? 0.15 : 0.25);
-            var textAlpha = isProxy ? 0.7 : 1;
-            inlineStyle = 'background:' + hexToRgba(rColor, bgAlpha) + ';color:' + hexToRgba(rColor, textAlpha) + ';border-color:' + hexToRgba(rColor, borderAlpha);
-            if (isSpecial) inlineStyle += ';font-weight:bold';
-          }
+          var bgAlpha = isMe ? 0.25 : (isProxy ? 0.08 : 0.12);
+          var borderAlpha = isMe ? 1 : (isProxy ? 0.15 : 0.25);
+          var textAlpha = isProxy ? 0.7 : 1;
+          var inlineStyle = 'background:' + hexToRgba(rColor, bgAlpha) + ';color:' + hexToRgba(rColor, textAlpha) + ';border-color:' + hexToRgba(rColor, borderAlpha);
+          if (isLeader || isSpecial) inlineStyle += ';font-weight:bold';
 
           html += '<span class="' + classes + '" style="' + inlineStyle + '">';
           if (isLeader || isSpecial) html += '👑 ';

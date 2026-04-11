@@ -560,21 +560,8 @@
   gap: 6rpx;
 }
 
-/* Leader 样式 */
-.member-leader {
-  border: 1rpx solid #f0b429;
-  font-weight: bold;
-  background: rgba(240, 180, 41, 0.2);
-  color: #f0b429;
-}
-
-.member-me-leader {
-  background: rgba(240, 180, 41, 0.35);
-  border-color: #f0b429;
-}
-
-/* Special user (crown + role color) */
-.member-special {
+/* Crown user (leader / special): bold + role color preserved via inline style */
+.member-crown {
   font-weight: bold;
 }
 
