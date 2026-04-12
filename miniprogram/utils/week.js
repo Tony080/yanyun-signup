@@ -184,23 +184,6 @@ function getWindowWeekDates() {
   return result;
 }
 
-/**
- * 检查某个 weekDate 的报名窗口是否开放
- * 只要当前时间在截止时间（周六 01:00 PDT）之前，就可以报名
- * 未来周期也允许提前报名
- */
-function isSignupWindowOpen(weekDateStr) {
-  var pdtNow = getPDTNow();
-  var p = weekDateStr.split('-');
-  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
-
-  var closeTime = new Date(sunday);
-  closeTime.setDate(closeTime.getDate() + 6);
-  closeTime.setHours(1, 0, 0, 0);
-
-  return pdtNow < closeTime;
-}
-
 module.exports = {
   PDT_OFFSET,
   SLOT_HOURS_PDT,
@@ -211,7 +194,6 @@ module.exports = {
   getRollingWindowDays,
   getWindowWeekDates,
   getWeekDateForDay,
-  isSignupWindowOpen,
   SUNDAY_DISABLED_HOURS,
   pdtToLocal,
   formatDate

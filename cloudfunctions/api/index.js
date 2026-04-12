@@ -172,11 +172,6 @@ async function quickJoin(openid, { weekDate, dayDate, hour, nickname, role, recu
   role = role || '输出';
   dayDate = dayDate || weekDate; // 向后兼容
 
-  // 检查报名窗口是否开放（周日 14:00 ~ 周六 01:00 PDT）
-  if (!isSignupWindowOpen(weekDate)) {
-    return { success: false, message: '该周期的报名窗口尚未开放或已关闭' };
-  }
-
   // 检查本周是否已报名（跨所有天，同一活动类型内）
   var existingQuery = { weekDate, activityType: activityType, members: _.elemMatch({ openid }) };
   var existing = await db.collection('slots')
@@ -269,11 +264,6 @@ async function createTeam(openid, { weekDate, dayDate, hour, nickname, role, rec
 
   role = role || '输出';
   dayDate = dayDate || weekDate;
-
-  // 检查报名窗口是否开放（周日 14:00 ~ 周六 01:00 PDT）
-  if (!isSignupWindowOpen(weekDate)) {
-    return { success: false, message: '该周期的报名窗口尚未开放或已关闭' };
-  }
 
   // 拒绝创建已过日期或时段的车队
   var pdtNow = getPDTNow();
@@ -375,11 +365,6 @@ async function move(openid, { weekDate, targetHour, targetDayDate, nickname, rol
   var config = getActivityConfig(activities, activityType);
 
   targetDayDate = targetDayDate || weekDate;
-
-  // 检查报名窗口是否开放
-  if (!isSignupWindowOpen(weekDate)) {
-    return { success: false, message: '该周期的报名窗口已关闭，无法挪动' };
-  }
 
   var moveQuery = { weekDate, activityType: activityType, members: _.elemMatch({ openid }) };
   var existing = await db.collection('slots')
@@ -761,19 +746,6 @@ function getPDTNow() {
 }
 function formatDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
-
-// 检查报名窗口是否开放: 只要在周六 01:00 PDT 截止前即可报名
-function isSignupWindowOpen(weekDateStr) {
-  var pdtNow = getPDTNow();
-  var p = weekDateStr.split('-');
-  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
-
-  var closeTime = new Date(sunday);
-  closeTime.setDate(closeTime.getDate() + 6);
-  closeTime.setHours(1, 0, 0, 0);
-
-  return pdtNow < closeTime;
 }
 
 async function onCarFull(weekDate, hour, carNumber, members) {

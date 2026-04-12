@@ -64,18 +64,14 @@
     </view>
   </view>
 
-  <!-- 入口按钮（未报名且窗口开放时显示） -->
-  <view class="entry-buttons" wx:if="{{!myRegistration && !loading && selectedDayWindowOpen}}">
+  <!-- 入口按钮（未报名时显示） -->
+  <view class="entry-buttons" wx:if="{{!myRegistration && !loading}}">
     <view class="entry-btn quick-join-btn" bindtap="openSignupModal" data-mode="quick">
       ⚡ 快速加入
     </view>
     <view class="entry-btn create-team-btn" bindtap="openSignupModal" data-mode="create">
       🚗 创建车队
     </view>
-  </view>
-  <!-- 报名窗口已截止提示 -->
-  <view class="window-closed-hint" wx:if="{{!myRegistration && !loading && !selectedDayWindowOpen}}">
-    <text>该周期报名已截止（周六 1AM PDT）</text>
   </view>
 
   <!-- 每周自动 -->
@@ -155,17 +151,17 @@
           <!-- Join / Create / Move buttons -->
           <view class="action-btn join-btn" catchtap="handleSlotJoin"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">
             加入
           </view>
           <view class="action-btn create-btn" catchtap="createTeamAt"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && !myRegistration && !actionLoading && slotMeta[slot.pdtHour].allFull}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && !myRegistration && !actionLoading && slotMeta[slot.pdtHour].allFull}}">
             开新车
           </view>
           <view class="action-btn move-btn" catchtap="handleMove"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && selectedDayWindowOpen && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate) && !actionLoading}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate) && !actionLoading}}">
             挪到这里
           </view>
         </view>

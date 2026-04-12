@@ -563,7 +563,6 @@ var state = {
   signupRole: '输出',
   signupRecurring: false,
   signupExtras: [],
-  selectedDayWindowOpen: false,
   // multi-activity hub
   activities: [],
   selectedActivity: null,
@@ -730,16 +729,6 @@ function getWindowWeekDates() {
   return result;
 }
 
-function isSignupWindowOpen(weekDateStr) {
-  var pdtNow = getPDTNow();
-  var p = weekDateStr.split('-');
-  var sunday = new Date(+p[0], +p[1] - 1, +p[2]);
-  var closeTime = new Date(sunday);
-  closeTime.setDate(closeTime.getDate() + 6);
-  closeTime.setHours(1, 0, 0, 0);
-  return pdtNow < closeTime;
-}
-
 function fmt12h(hour) {
   if (hour === 0) return '12:00 AM';
   if (hour < 12) return hour + ':00 AM';
@@ -772,8 +761,7 @@ function buildTimeSlots() {
   });
   var f = rd[0], la = rd[rd.length - 1];
   state.weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-  state.pdtLabel = '昨天 ~ +7天 · 每周期周六1AM PDT截止';
-  state.selectedDayWindowOpen = isSignupWindowOpen(rd[state.selectedDay].weekDate);
+  state.pdtLabel = '昨天 ~ +7天';
 }
 
 // ===== Activity helpers =====
@@ -845,8 +833,7 @@ async function loadSlots() {
     // 当前选中天的 weekDate 对应的报名
     var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
     state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
-    state.selectedDayWindowOpen = isSignupWindowOpen(selectedWeekDate);
-
+  
     rebuildSlotsMapForDay();
   } catch (e) { console.error('loadSlots', e); }
 }
@@ -871,7 +858,6 @@ function rebuildSlotsMapForDay() {
   });
   // 更新当前选中天的 myRegistration 和窗口状态
   state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
-  state.selectedDayWindowOpen = isSignupWindowOpen(selectedWeekDate);
   // recurring 预约检测
   state.recurringPending = false;
   state.recurringPendingDisplay = '';
@@ -917,14 +903,12 @@ function renderSignupModal() {
   var dayHtml = '';
   state.rollingDays.forEach(function(rd) {
     var isPast = rd.dayDate < todayStr;
-    var windowOpen = isSignupWindowOpen(rd.weekDate);
     var sel = rd.windowIndex === state.signupDay ? ' selected' : '';
-    var dis = (isPast || !windowOpen) ? ' disabled' : '';
+    var dis = isPast ? ' disabled' : '';
     var dayCount = 0;
     state.allSlots.forEach(function(s) { if (s.dayDate === rd.dayDate) dayCount += s.count; });
     var label = rd.dayName + ' ' + rd.shortDate + (dayCount > 0 ? ' (' + dayCount + '人)' : '');
     if (isPast) label += ' (已过)';
-    else if (!windowOpen) label += ' (未开放)';
     dayHtml += '<option value="' + rd.windowIndex + '"' + sel + dis + '>' + esc(label) + '</option>';
   });
   daySelectEl.innerHTML = dayHtml;
@@ -1308,7 +1292,6 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 // ===== 智能推荐 =====
 function getRecommendation() {
   var s = state;
-  if (!s.selectedDayWindowOpen) return null;
   var dayDate = s.rollingDays[s.selectedDay].dayDate;
   var best = null;
   for (var h in s.slotsMap) {
@@ -1426,17 +1409,13 @@ function render() {
     html += '</div></div></div>';
   }
 
-  // ===== 入口按钮（未报名且窗口开放时）=====
-  if (!s.myRegistration && !s.actionLoading && s.selectedDayWindowOpen) {
+  // ===== 入口按钮（未报名时）=====
+  if (!s.myRegistration && !s.actionLoading) {
     html += '<div class="entry-buttons">';
     html += '<button class="entry-btn entry-btn-quick" onclick="window._quickJoin()">⚡ 快速加入</button>';
     html += '<button class="entry-btn entry-btn-create" onclick="window._createTeam()">🚗 创建车队</button>';
     html += '</div>';
   }
-  if (!s.myRegistration && !s.actionLoading && !s.selectedDayWindowOpen) {
-    html += '<div style="text-align:center;font-size:13px;color:#6e7681;padding:16px;margin-bottom:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid #21262d">该周期报名已截止（周六 1AM PDT）</div>';
-  }
-
   // ===== 每周自动 =====
   html += '<div class="recurring-bar ' + (s.isRecurring ? 'recurring-on' : 'recurring-off') + '" onclick="window._toggleRec()">';
   html += '<div class="recurring-toggle"><div class="toggle-dot ' + (s.isRecurring ? 'on' : '') + '"><div class="dot-inner"></div></div>';
@@ -1520,14 +1499,14 @@ function render() {
     if (isCurrent) html += '<span class="current-badge" style="padding:2px 8px;font-size:11px">当前</span>';
     html += '</div>';
 
-    // Action button — 已过时段或窗口未开放时不显示
-    if (!isPast && s.selectedDayWindowOpen && !s.myRegistration && !s.actionLoading) {
+    // Action button — 已过时段不显示
+    if (!isPast && !s.myRegistration && !s.actionLoading) {
       if (allFull) {
         html += '<button class="action-btn create-btn" onclick="event.stopPropagation();window._createTeamAt(' + slot.pdtHour + ')">开新车</button>';
       } else {
         html += '<button class="action-btn join-btn" onclick="event.stopPropagation();window._joinSlot(' + slot.pdtHour + ')">加入</button>';
       }
-    } else if (!isPast && s.selectedDayWindowOpen && s.myRegistration && !isCurrent && !s.actionLoading) {
+    } else if (!isPast && s.myRegistration && !isCurrent && !s.actionLoading) {
       html += '<button class="action-btn move-btn" onclick="event.stopPropagation();window._move(' + slot.pdtHour + ')">挪到这里</button>';
     }
     html += '</div>';

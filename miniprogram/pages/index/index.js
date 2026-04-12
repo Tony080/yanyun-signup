@@ -3,7 +3,6 @@ var SUNDAY_DISABLED_HOURS = week.SUNDAY_DISABLED_HOURS;
 var pdtToLocal = week.pdtToLocal;
 var getRollingWindowDays = week.getRollingWindowDays;
 var getWindowWeekDates = week.getWindowWeekDates;
-var isSignupWindowOpen = week.isSignupWindowOpen;
 
 /**
  * Helper: hex color string "#RRGGBB" -> {r, g, b}
@@ -98,9 +97,6 @@ Page({
     nameConfirmTarget: '',
     slotMeta: {},
 
-    // 当前选中天的报名窗口状态
-    selectedDayWindowOpen: false,
-
     // ===== Multi-activity support =====
     activities: [],
     selectedActivity: '',
@@ -147,7 +143,7 @@ Page({
       var f = rollingDays[0];
       var la = rollingDays[rollingDays.length - 1];
       var weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-      var pdtLabel = '昨天 ~ +7天 · 每周期周六1AM PDT截止';
+      var pdtLabel = '昨天 ~ +7天';
 
       var recurringLocalDisplay = '';
       if (recurringHour != null && recurringDay != null) {
@@ -578,7 +574,6 @@ Page({
         myRegistrations: myRegistrations,
         myRegistration: myRegistration,
         rollingDays: updatedDays,
-        selectedDayWindowOpen: isSignupWindowOpen(selectedWeekDate),
         loading: false
       });
       this.rebuildSlotsMapForDay();
@@ -641,11 +636,10 @@ Page({
     // 当前选中天的 weekDate 对应的报名
     var myRegistrations = this.data.myRegistrations;
     var myRegistration = myRegistrations[selectedWeekDate] || null;
-    var windowOpen = isSignupWindowOpen(selectedWeekDate);
 
     // Build recommendation (find car needing specific role)
     var recommendation = null;
-    if (!myRegistration && windowOpen && config && config.roles && config.roles.length >= 2) {
+    if (!myRegistration && config && config.roles && config.roles.length >= 2) {
       for (var rh in slotsMap) {
         var rdata = slotsMap[rh];
         for (var ci = 0; ci < rdata.cars.length; ci++) {
@@ -739,7 +733,6 @@ Page({
       slotMeta: slotMeta,
       pdtTodayStr: pdtTodayStr,
       myRegistration: myRegistration,
-      selectedDayWindowOpen: windowOpen,
       recurringPending: recurringPending,
       recurringPendingDisplay: recurringPendingDisplay,
       memberStyles: memberStyles
@@ -873,11 +866,8 @@ Page({
     for (var di = 0; di < rollingDays.length; di++) {
       var rd = rollingDays[di];
       var dayLabel = rd.dayName + ' ' + rd.shortDate;
-      var windowOpen = isSignupWindowOpen(rd.weekDate);
       if (rd.dayDate < pdtTodayStr) {
         dayLabel += '（已过）';
-      } else if (!windowOpen) {
-        dayLabel += '（未开放）';
       }
       dayPickerOptions.push({ label: dayLabel, windowIndex: di });
     }
