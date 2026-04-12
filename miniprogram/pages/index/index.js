@@ -489,7 +489,7 @@ Page({
           var member = car.members[mi];
           var color = self.getRoleColor(member.role);
           var isMe = member.openid === openid;
-          styles[h][member.openid + '_' + ci] = memberStyle(color, isMe);
+          styles[h][member.openid + '_' + car.carIndex] = memberStyle(color, isMe);
         }
       }
     }
