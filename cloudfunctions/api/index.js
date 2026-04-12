@@ -381,6 +381,17 @@ async function move(openid, { weekDate, targetHour, targetDayDate, nickname, rol
     return { success: false, message: '你已在该时段' };
   }
 
+  // 周日 14:00+ 属于新周期，不能与旧周期时段互挪
+  var fp = currentDayDate.split('-');
+  var fromDayOfWeek = new Date(+fp[0], +fp[1] - 1, +fp[2]).getDay();
+  var fromIsNewCycle = fromDayOfWeek === 0 && currentSlot.hour >= 14;
+  var tp = targetDayDate.split('-');
+  var toDayOfWeek = new Date(+tp[0], +tp[1] - 1, +tp[2]).getDay();
+  var toIsNewCycle = toDayOfWeek === 0 && targetHour >= 14;
+  if (fromIsNewCycle !== toIsNewCycle) {
+    return { success: false, message: '不能跨周期挪动，请退出后重新报名' };
+  }
+
   var myMembers = currentSlot.members.filter(function(m) {
     return m.openid === openid || m.registeredBy === openid;
   });

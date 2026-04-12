@@ -548,6 +548,8 @@ Page({
           for (var k = 0; k < rollingDays.length; k++) {
             if (rollingDays[k].dayDate === s.dayDate) { winIdx = k; break; }
           }
+          var regDayParts = (s.dayDate || s.weekDate).split('-');
+          var regDayOfWeek = new Date(+regDayParts[0], +regDayParts[1] - 1, +regDayParts[2]).getDay();
           myRegistrations[s.weekDate] = {
             hour: s.hour,
             carIndex: s.carIndex,
@@ -555,7 +557,8 @@ Page({
             dayDate: s.dayDate,
             weekDate: s.weekDate,
             windowIndex: winIdx >= 0 ? winIdx : -1,
-            localDisplay: pdtToLocal(s.dayDate, s.hour).display
+            localDisplay: pdtToLocal(s.dayDate, s.hour).display,
+            isSundayNewCycle: regDayOfWeek === 0 && s.hour >= 14
           };
         }
       }
@@ -637,6 +640,10 @@ Page({
     var myRegistrations = this.data.myRegistrations;
     var myRegistration = myRegistrations[selectedWeekDate] || null;
 
+    // 周日 14:00+ 属于新周期，判断当前报名是否在新周期
+    var regIsSundayNewCycle = myRegistration && myRegistration.isSundayNewCycle;
+    var selectedDayOfWeek = day.dayOfWeek;
+
     // Build recommendation (find car needing specific role)
     var recommendation = null;
     if (!myRegistration && config && config.roles && config.roles.length >= 2) {
@@ -684,19 +691,23 @@ Page({
     var slotMeta = {};
     for (var sh in slotsMap) {
       var sd = slotsMap[sh];
+      var targetIsNewCycle = selectedDayOfWeek === 0 && +sh >= 14;
       slotMeta[sh] = {
         allFull: sd.cars.length > 0 && sd.cars.every(function(c) { return c.full; }),
         isHot: sd.totalCount >= maxPerCar * 2,
-        isPast: isDayPast || (isDayToday && +sh <= pdtCurrentHour)
+        isPast: isDayPast || (isDayToday && +sh <= pdtCurrentHour),
+        crossCycleBlocked: myRegistration && (!!regIsSundayNewCycle !== !!targetIsNewCycle)
       };
     }
     // Also mark hours with no slots as past
     for (var ti = 0; ti < SLOT_HOURS.length; ti++) {
       var hr = SLOT_HOURS[ti];
       if (!slotMeta[hr]) {
+        var targetIsNewCycleEmpty = selectedDayOfWeek === 0 && hr >= 14;
         slotMeta[hr] = {
           allFull: false, isHot: false,
-          isPast: isDayPast || (isDayToday && hr <= pdtCurrentHour)
+          isPast: isDayPast || (isDayToday && hr <= pdtCurrentHour),
+          crossCycleBlocked: myRegistration && (!!regIsSundayNewCycle !== !!targetIsNewCycleEmpty)
         };
       }
     }
@@ -1138,6 +1149,16 @@ Page({
 
     // 只能在同一个 weekDate 内挪动
     if (targetDay.weekDate !== myReg.weekDate) {
+      wx.showToast({ title: '不能跨周期挪动，请退出后重新报名', icon: 'none' });
+      return;
+    }
+
+    // 周日 14:00+ 是新周期的开始，不能和同 weekDate 下的旧周期时段互挪
+    var fromDayParts = myReg.dayDate.split('-');
+    var fromDayOfWeek = new Date(+fromDayParts[0], +fromDayParts[1] - 1, +fromDayParts[2]).getDay();
+    var fromIsNewCycle = fromDayOfWeek === 0 && myReg.hour >= 14;
+    var toIsNewCycle = targetDay.dayOfWeek === 0 && targetPdtHour >= 14;
+    if (fromIsNewCycle !== toIsNewCycle) {
       wx.showToast({ title: '不能跨周期挪动，请退出后重新报名', icon: 'none' });
       return;
     }

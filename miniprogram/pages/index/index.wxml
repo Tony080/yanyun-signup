@@ -161,7 +161,7 @@
           </view>
           <view class="action-btn move-btn" catchtap="handleMove"
                 data-hour="{{slot.pdtHour}}"
-                wx:if="{{!slotMeta[slot.pdtHour].isPast && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate) && !actionLoading}}">
+                wx:if="{{!slotMeta[slot.pdtHour].isPast && myRegistration && !(myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate) && !actionLoading && !slotMeta[slot.pdtHour].crossCycleBlocked}}">
             挪到这里
           </view>
         </view>
