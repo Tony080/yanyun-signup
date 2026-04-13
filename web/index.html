@@ -595,13 +595,20 @@ async function init() {
 
   var savedNick = localStorage.getItem('yanyun_nick');
 
-  // login + loadActivities 单次 HTTP 批量调用
+  // rollingDays / weekDates 是纯日期计算，提前算好
+  state.rollingDays = getRollingWindowDays();
+  state.windowWeekDates = getWindowWeekDates();
+  state.selectedDay = 1;
+
+  // login + activities + getSlots 全部并行，单次 HTTP 请求
   var results = await callBatch([
     { name: 'login', data: { nickname: savedNick || undefined } },
-    { name: 'api', data: { action: 'getActivities' } }
+    { name: 'api', data: { action: 'getActivities' } },
+    { name: 'api', data: { action: 'getSlots', weekDates: state.windowWeekDates } }
   ]);
-  console.log('[perf] login+activities:', Math.round(performance.now() - t0), 'ms');
+  console.log('[perf] batch (login+activities+slots):', Math.round(performance.now() - t0), 'ms');
 
+  // 处理 login
   var res = results[0];
   if (res && !res.error && res.nickname) {
     state.nickname = res.nickname;
@@ -614,6 +621,7 @@ async function init() {
     state.nickname = savedNick || '访客' + state.userId.slice(-4);
   }
 
+  // 处理 activities
   var actRes = results[1];
   state.activities = (actRes && actRes.success && actRes.activities) ? actRes.activities : [];
   if (state.activities.length > 0) {
@@ -624,9 +632,6 @@ async function init() {
     state.currentActivityConfig = { id: 'a1b2c3d4', name: '十人本', maxPerCar: 10, startHour: 12, endHour: 22, roles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}] };
   }
 
-  state.rollingDays = getRollingWindowDays();
-  state.windowWeekDates = getWindowWeekDates();
-  state.selectedDay = 1; // today (index 1 in rolling window)
   buildTimeSlots();
   if (state.recurringHour != null && state.recurringDay != null) {
     var recDay = state.rollingDays.find(function(d) { return d.dayOfWeek === state.recurringDay; });
@@ -639,11 +644,38 @@ async function init() {
     state.recurringLocalDisplay = '';
   }
 
-  // 解析 URL anchor（在加载数据前应用，以便切换到正确的活动/天）
+  // 解析 URL anchor
   var anchor = parseAnchor();
   if (anchor) applyAnchor(anchor);
 
-  await loadSlots();
+  // 处理 slots（已在 batch 中获取，直接用）
+  var slotsRes = results[2];
+  var allSlots = (slotsRes && slotsRes.success && slotsRes.slots) ? slotsRes.slots : [];
+  allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
+  // 按当前活动过滤（batch 未指定 activityType，返回所有）
+  var actType = state.selectedActivity;
+  state.allSlots = allSlots.filter(function(s) { return !s.activityType || s.activityType === actType; });
+
+  var dayCounts = {};
+  state.myRegistrations = {};
+  state.allSlots.forEach(function(slot) {
+    if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
+    dayCounts[slot.dayDate] += slot.count;
+    if (slot.members.some(function(m) { return m.openid === state.userId; })) {
+      var winIdx = state.rollingDays.findIndex(function(rd) { return rd.dayDate === slot.dayDate; });
+      state.myRegistrations[slot.weekDate] = {
+        hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
+        dayDate: slot.dayDate, weekDate: slot.weekDate,
+        windowIndex: winIdx >= 0 ? winIdx : -1,
+        localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
+      };
+    }
+  });
+  state.rollingDays.forEach(function(rd) { rd.totalCount = dayCounts[rd.dayDate] || 0; });
+  var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
+  state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
+  rebuildSlotsMapForDay();
+
   state.loading = false;
   console.log('[perf] total init:', Math.round(performance.now() - t0), 'ms');
   render();
