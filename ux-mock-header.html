@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 1 - 精简头部</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;padding:40px 16px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+.mock-title{font-size:22px;font-weight:bold;color:#f0b429;text-align:center;width:100%;margin-bottom:4px}
+.mock-sub{text-align:center;color:#8b949e;font-size:13px;width:100%;margin-bottom:24px}
+.phone{width:375px;background:#0d1117;border-radius:24px;border:2px solid #333;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.notch{width:100px;height:5px;background:#333;border-radius:3px;margin:0 auto 12px}
+.annos{flex:1;min-width:280px}
+.anno{padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid}
+.anno h4{font-size:14px;margin-bottom:3px}
+.anno p{font-size:12px;color:#8b949e;line-height:1.5}
+.anno.red{border-color:#f85149;background:rgba(248,81,73,.06)}
+.anno.red h4{color:#f85149}
+.anno.green{border-color:#3fb950;background:rgba(63,185,80,.06)}
+.anno.green h4{color:#3fb950}
+.anno.blue{border-color:#58a6ff;background:rgba(88,166,255,.06)}
+.anno.blue h4{color:#58a6ff}
+.label-before{font-size:11px;color:#f85149;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+.label-after{font-size:11px;color:#3fb950;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+
+/* ---- Phone UI ---- */
+.hdr{background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid rgba(240,180,41,.12)}
+.hdr-top{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
+.hdr-title{font-size:16px;font-weight:bold;color:#f0b429}
+.hdr-sub{font-size:11px;color:#8b949e}
+.week-badge{display:inline-block;background:rgba(240,180,41,.12);color:#f0b429;padding:3px 10px;border-radius:10px;font-size:11px;margin-bottom:4px}
+.pdt{font-size:9px;color:#6e7681;margin-bottom:10px}
+.nick-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.nick-label{font-size:11px;color:#8b949e}
+.nick-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 8px;color:#e6edf3;font-size:13px}
+.save-btn{background:#f0b429;color:#0d1117;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:bold}
+.role-sel{display:flex;gap:4px}
+.role-dot{padding:3px 8px;border-radius:6px;font-size:11px;border:1.5px solid transparent}
+.role-dot.r-out{background:rgba(56,139,253,.1);color:#79c0ff}
+.role-dot.r-out.active{background:rgba(56,139,253,.2);border-color:#58a6ff}
+.role-dot.r-lin{background:rgba(63,185,80,.1);color:#7ee787}
+.rules{font-size:9px;color:#484f58;margin-top:8px;border-top:1px solid rgba(255,255,255,.04);padding-top:5px}
+
+/* ---- NEW header ---- */
+.hdr-new .nick-display{display:flex;align-items:center;gap:6px}
+.hdr-new .nick-name{font-size:14px;color:#e6edf3;font-weight:600}
+.hdr-new .nick-role{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(56,139,253,.15);color:#79c0ff}
+.hdr-new .nick-edit{font-size:11px;color:#6e7681;cursor:pointer;text-decoration:underline}
+.hdr-new .nick-edit-area{display:none;margin-top:8px}
+.hdr-new .nick-edit-area.show{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.08);color:#6e7681;font-size:9px;cursor:pointer}
+.tooltip{display:none;font-size:9px;color:#8b949e;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.04);border-radius:6px}
+.tooltip.show{display:block}
+</style>
+</head>
+<body>
+
+<div class="mock-title">Mock 1: 精简头部</div>
+<div class="mock-sub">解决头部信息过载 + 职业选择器重复问题</div>
+
+<div class="wrap">
+  <!-- BEFORE -->
+  <div>
+    <div class="label-before">BEFORE (现状)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="hdr">
+        <div class="hdr-top">
+          <span class="hdr-title">燕云十六声</span>
+          <span class="hdr-sub">十人本</span>
+        </div>
+        <div class="week-badge">4/11 周六 ~ 4/19 周日</div>
+        <div class="pdt">昨天 → +7天</div>
+        <div class="nick-row">
+          <span class="nick-label">角色名</span>
+          <input class="nick-input" value="圣诞节客户反馈" readonly>
+          <span class="save-btn" style="visibility:hidden">保存</span>
+          <div class="role-sel">
+            <span class="role-dot r-out active">输出</span>
+            <span class="role-dot r-lin">霖霖</span>
+          </div>
+        </div>
+        <div class="rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>
+      </div>
+      <div style="text-align:center;color:#484f58;font-size:11px;padding:20px">
+        头部占了整个首屏的 40%<br>
+        角色名输入框始终展示<br>
+        职业选择器和弹窗里重复<br>
+        规则文字每次都要看到
+      </div>
+    </div>
+  </div>
+
+  <!-- AFTER -->
+  <div>
+    <div class="label-after">AFTER (改进)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="hdr hdr-new">
+        <div class="hdr-top">
+          <span class="hdr-title">燕云十六声</span>
+          <span class="hdr-sub">十人本</span>
+          <span class="info-icon" onclick="this.parentElement.parentElement.querySelector('.tooltip').classList.toggle('show')">?</span>
+        </div>
+        <div class="week-badge">4/11 周六 ~ 4/19 周日</div>
+        <div class="tooltip">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>
+
+        <div class="nick-display">
+          <span class="nick-name">圣诞节客户反馈</span>
+          <span class="nick-role">输出</span>
+          <span class="nick-edit" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">修改</span>
+        </div>
+        <div class="nick-edit-area">
+          <input class="nick-input" value="圣诞节客户反馈" readonly style="flex:1">
+          <span class="save-btn">保存</span>
+          <div class="role-sel" style="margin-top:0">
+            <span class="role-dot r-out active">输出</span>
+            <span class="role-dot r-lin">霖霖</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;color:#3fb950;font-size:11px;padding:20px">
+        头部高度减少 ~40%<br>
+        角色名默认只读展示，点"修改"才展开<br>
+        规则藏在 ? 图标后面<br>
+        职业 badge 一目了然
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annos" style="width:100%;max-width:700px">
+    <div class="anno red">
+      <h4>问题：头部信息过载</h4>
+      <p>7层信息堆在首屏：标题、副标题、周期、时区、角色名输入、职业选择器、规则。用户每次打开都要视觉过滤。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：职业选择器重复</h4>
+      <p>头部有一个职业选择器，报名弹窗里又有一个。两处控制同一状态，改了哪个算？</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：收起模式</h4>
+      <p>角色名 + 职业默认只读展示为一行（"圣诞节客户反馈 <span style="color:#79c0ff">输出</span>"），点「修改」才展开编辑区。头部高度从 ~160px 降到 ~90px。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：规则藏到 ? 图标</h4>
+      <p>规则说明只有新用户需要看。用一个 ? 图标触发 tooltip，老用户不再被干扰。</p>
+    </div>
+    <div class="anno blue">
+      <h4>头部职业选择器的定位</h4>
+      <p>头部的职业选择器改为"记忆偏好"角色（影响推荐卡片和默认选中）。弹窗里的是"本次报名职业"。用 badge 展示偏好，避免两个选择器的混淆。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

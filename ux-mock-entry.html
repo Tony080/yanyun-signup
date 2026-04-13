@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 2 - 入口按钮 + Recurring</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;padding:40px 16px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+.mock-title{font-size:22px;font-weight:bold;color:#f0b429;text-align:center;width:100%;margin-bottom:4px}
+.mock-sub{text-align:center;color:#8b949e;font-size:13px;width:100%;margin-bottom:24px}
+.phone{width:375px;background:#0d1117;border-radius:24px;border:2px solid #333;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.notch{width:100px;height:5px;background:#333;border-radius:3px;margin:0 auto 12px}
+.annos{flex:1;min-width:280px;max-width:700px}
+.anno{padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid}
+.anno h4{font-size:14px;margin-bottom:3px}
+.anno p{font-size:12px;color:#8b949e;line-height:1.5}
+.anno.red{border-color:#f85149;background:rgba(248,81,73,.06)} .anno.red h4{color:#f85149}
+.anno.green{border-color:#3fb950;background:rgba(63,185,80,.06)} .anno.green h4{color:#3fb950}
+.anno.blue{border-color:#58a6ff;background:rgba(88,166,255,.06)} .anno.blue h4{color:#58a6ff}
+.label-before{font-size:11px;color:#f85149;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+.label-after{font-size:11px;color:#3fb950;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+
+/* Phone UI shared */
+.hdr{background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid rgba(240,180,41,.12)}
+.hdr-top{display:flex;align-items:baseline;gap:6px}
+.hdr-title{font-size:15px;font-weight:bold;color:#f0b429}
+.hdr-sub{font-size:11px;color:#8b949e}
+
+/* Buttons */
+.entry-btns{display:flex;gap:8px;margin-bottom:8px}
+.btn-quick{flex:1;background:rgba(35,134,54,.15);color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:10px;padding:12px;text-align:center;font-size:13px;font-weight:bold}
+.btn-create{flex:1;background:rgba(240,180,41,.1);color:#f0b429;border:1px solid rgba(240,180,41,.25);border-radius:10px;padding:12px;text-align:center;font-size:13px;font-weight:bold}
+.btn-icon{font-size:16px;display:block;margin-bottom:2px}
+
+/* Recurring */
+.recur-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;margin-bottom:8px;font-size:12px}
+.recur-off{background:rgba(255,255,255,.03);border:1px solid #21262d}
+.recur-on{background:rgba(35,134,54,.08);border:1px solid rgba(35,134,54,.2)}
+.toggle{width:32px;height:18px;border-radius:9px;background:#30363d;position:relative;cursor:pointer}
+.toggle .dot{width:14px;height:14px;border-radius:50%;background:#8b949e;position:absolute;top:2px;left:2px;transition:.2s}
+.toggle.on{background:rgba(35,134,54,.4)}
+.toggle.on .dot{left:16px;background:#3fb950}
+.recur-label{color:#8b949e}
+.recur-label.on{color:#3fb950}
+.recur-hint{font-size:10px;color:#6e7681;margin-left:auto}
+
+/* NEW: better buttons */
+.btn-new-quick{flex:1;background:linear-gradient(135deg,rgba(35,134,54,.2),rgba(35,134,54,.1));color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:10px;padding:14px 12px;text-align:center;font-weight:bold;font-size:13px}
+.btn-new-create{flex:1;background:rgba(255,255,255,.03);color:#8b949e;border:1px solid #30363d;border-radius:10px;padding:14px 12px;text-align:center;font-size:12px}
+.btn-sub{font-size:10px;color:#6e7681;font-weight:normal;margin-top:2px}
+.btn-new-quick .btn-sub{color:rgba(63,185,80,.6)}
+
+/* NEW: recurring inline */
+.recur-new{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;margin-bottom:8px;background:rgba(35,134,54,.08);border:1px solid rgba(35,134,54,.2)}
+.recur-new .recur-icon{font-size:16px}
+.recur-new .recur-info{flex:1}
+.recur-new .recur-main{font-size:12px;color:#3fb950;font-weight:600}
+.recur-new .recur-detail{font-size:10px;color:#6e7681;margin-top:1px}
+.recur-new .recur-edit{font-size:11px;color:#58a6ff;cursor:pointer}
+
+/* Slot rows mini */
+.slot{display:flex;align-items:center;justify-content:space-between;background:#161b22;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #21262d;font-size:12px}
+.slot-time{font-weight:600;color:#e6edf3}
+.slot-count{color:#8b949e;margin-left:6px}
+.slot-join{background:rgba(35,134,54,.15);color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:6px;padding:4px 12px;font-size:11px;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div class="mock-title">Mock 2: 入口按钮 + 每周自动</div>
+<div class="mock-sub">更清晰的按钮文案 + Recurring 作为核心功能的展示方式</div>
+
+<div class="wrap">
+  <!-- BEFORE -->
+  <div>
+    <div class="label-before">BEFORE</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="hdr"><div class="hdr-top"><span class="hdr-title">燕云十六声</span><span class="hdr-sub">十人本</span></div></div>
+
+      <div class="entry-btns">
+        <div class="btn-quick"><span class="btn-icon">&#9889;</span>快速加入</div>
+        <div class="btn-create"><span class="btn-icon">&#128663;</span>创建车队</div>
+      </div>
+
+      <div class="recur-bar recur-off">
+        <div class="toggle"><div class="dot"></div></div>
+        <span class="recur-label">每周自动报名</span>
+        <span class="recur-hint">关闭</span>
+      </div>
+
+      <div class="slot"><span><span class="slot-time">周一 12:00 PM</span><span class="slot-count">6人</span></span><span class="slot-join">加入</span></div>
+      <div class="slot"><span><span class="slot-time">周一 1:00 PM</span><span class="slot-count">6人</span></span><span class="slot-join">加入</span></div>
+
+      <div style="text-align:center;color:#484f58;font-size:10px;padding:16px">
+        &bull; "快速加入" vs "创建车队" 新用户看不懂区别<br>
+        &bull; Recurring toggle 放在按钮和列表之间很突兀<br>
+        &bull; 列表的"加入"和顶部"快速加入"行为不一样
+      </div>
+    </div>
+  </div>
+
+  <!-- AFTER -->
+  <div>
+    <div class="label-after">AFTER</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="hdr"><div class="hdr-top"><span class="hdr-title">燕云十六声</span><span class="hdr-sub">十人本</span></div></div>
+
+      <!-- Better buttons -->
+      <div class="entry-btns">
+        <div class="btn-new-quick">
+          &#9889; 加入现有队伍
+          <div class="btn-sub">自动匹配有空位的车</div>
+        </div>
+        <div class="btn-new-create">
+          + 开一个新队
+          <div class="btn-sub">所有车都满时使用</div>
+        </div>
+      </div>
+
+      <!-- Recurring as status card (ON state) -->
+      <div class="recur-new">
+        <span class="recur-icon">&#128260;</span>
+        <div class="recur-info">
+          <div class="recur-main">每周自动 · 周一 2:00 PM · 输出</div>
+          <div class="recur-detail">下次自动报名将在周五检查</div>
+        </div>
+        <span class="recur-edit">修改</span>
+      </div>
+
+      <div class="slot"><span><span class="slot-time">周一 12:00 PM</span><span class="slot-count">6人</span></span><span class="slot-join">加入</span></div>
+      <div class="slot"><span><span class="slot-time">周一 1:00 PM</span><span class="slot-count">6人</span></span><span class="slot-join">加入</span></div>
+
+      <div style="text-align:center;color:#3fb950;font-size:10px;padding:16px">
+        &bull; 主按钮"加入现有队伍"加了说明文案<br>
+        &bull; 次按钮"开一个新队"视觉降级 + 解释<br>
+        &bull; Recurring 已开启 = 状态卡片，显示完整信息<br>
+        &bull; 列表"加入"保持一键操作不变
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annos" style="width:100%">
+    <div class="anno red">
+      <h4>问题：按钮文案不清晰</h4>
+      <p>"快速加入"和"创建车队"在用户心智中没有明确区分。"创建车队"听起来像社交功能（建公会），实际只是"车满了开新车"。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：主次分明 + 说明文案</h4>
+      <p>"加入现有队伍"为主按钮（绿色渐变，视觉突出），"开一个新队"为次按钮（灰色）。各带一行小字解释功能。90% 的操作走主按钮，减少决策负担。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：Recurring toggle 位置/形态不对</h4>
+      <p>作为核心功能，一个小小的 toggle 开关放在按钮和列表中间，容易被忽略。开启后也不显示具体配置信息（哪天、几点、什么职业）。而且和弹窗里的 recurring checkbox 重复。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：状态卡片替代 toggle</h4>
+      <p>已开启 → 展示为信息丰富的状态卡片（时间 + 职业 + 下次检查时间），点"修改"进弹窗改配置。未开启 → 保持 toggle 形态但加文案引导"开启后每周自动帮你报名"。</p>
+    </div>
+    <div class="anno blue">
+      <h4>交互统一原则</h4>
+      <p>顶部按钮 = 弹窗（需要选时段/职业）；列表行"加入" = 一键操作（时段已确定）。两者行为不同是合理的，但需要通过文案和视觉让用户理解区别。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

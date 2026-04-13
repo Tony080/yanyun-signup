@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 5 - Web 版体验对齐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;padding:40px 16px}
+.wrap{max-width:1200px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+.mock-title{font-size:22px;font-weight:bold;color:#f0b429;text-align:center;width:100%;margin-bottom:4px}
+.mock-sub{text-align:center;color:#8b949e;font-size:13px;width:100%;margin-bottom:24px}
+.annos{width:100%;max-width:700px;margin:0 auto}
+.anno{padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid}
+.anno h4{font-size:14px;margin-bottom:3px}
+.anno p{font-size:12px;color:#8b949e;line-height:1.5}
+.anno.red{border-color:#f85149;background:rgba(248,81,73,.06)} .anno.red h4{color:#f85149}
+.anno.green{border-color:#3fb950;background:rgba(63,185,80,.06)} .anno.green h4{color:#3fb950}
+.anno.blue{border-color:#58a6ff;background:rgba(88,166,255,.06)} .anno.blue h4{color:#58a6ff}
+.label-tag{font-size:11px;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+
+/* Browser frame */
+.browser{background:#0d1117;border-radius:12px;border:2px solid #333;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.browser-bar{background:#161b22;padding:8px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #21262d}
+.browser-dot{width:10px;height:10px;border-radius:50%}
+.dot-r{background:#f85149} .dot-y{background:#f0b429} .dot-g{background:#3fb950}
+.browser-url{flex:1;background:rgba(255,255,255,.06);border-radius:4px;padding:4px 8px;font-size:10px;color:#8b949e;margin-left:8px}
+.browser-body{padding:16px}
+
+/* Mobile browser (narrow) */
+.browser-mobile{width:375px}
+/* Desktop browser (wide) */
+.browser-desktop{width:750px}
+
+/* Shared UI */
+.hdr{background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid rgba(240,180,41,.12)}
+.hdr-top{display:flex;align-items:baseline;gap:6px}
+.hdr-title{font-size:16px;font-weight:bold;color:#f0b429}
+.hdr-sub{font-size:11px;color:#8b949e}
+
+/* Identity section */
+.id-section{background:rgba(56,139,253,.06);border:1px solid rgba(56,139,253,.2);border-radius:10px;padding:12px;margin-bottom:10px}
+.id-title{font-size:12px;color:#58a6ff;font-weight:600;margin-bottom:6px}
+.id-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.id-label{font-size:11px;color:#8b949e}
+.id-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 8px;color:#e6edf3;font-size:12px}
+.id-btn{background:#f0b429;color:#0d1117;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap}
+.id-code{font-size:11px;color:#6e7681;margin-top:6px}
+.id-code strong{color:#f0b429;font-size:13px;letter-spacing:1px}
+.id-explain{font-size:10px;color:#6e7681;margin-top:6px;line-height:1.5;padding:6px 8px;background:rgba(255,255,255,.02);border-radius:6px}
+
+/* Recovery restore section */
+.restore-section{background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:12px;margin-bottom:10px}
+.restore-title{font-size:12px;color:#a78bfa;font-weight:600;margin-bottom:6px}
+.restore-row{display:flex;gap:6px;align-items:center}
+.restore-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 8px;color:#e6edf3;font-size:12px}
+.restore-btn{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap}
+
+/* Desktop two-column layout */
+.desktop-layout{display:flex;gap:16px}
+.desktop-main{flex:1;min-width:0}
+.desktop-side{width:220px;flex-shrink:0}
+.side-card{background:#161b22;border:1px solid #21262d;border-radius:10px;padding:12px;margin-bottom:8px}
+.side-title{font-size:11px;color:#8b949e;font-weight:600;margin-bottom:6px}
+.side-item{font-size:11px;color:#6e7681;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.side-item:last-child{border:0}
+.side-item strong{color:#e6edf3}
+
+/* Slot mini */
+.slot{display:flex;align-items:center;justify-content:space-between;background:#161b22;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #21262d;font-size:12px}
+.slot-time{font-weight:600;color:#e6edf3}
+.slot-count{color:#8b949e;margin-left:6px}
+.slot-join{background:rgba(35,134,54,.15);color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:6px;padding:4px 12px;font-size:11px;font-weight:bold;cursor:pointer}
+
+/* Welcome flow */
+.welcome{text-align:center;padding:20px 12px}
+.welcome h2{font-size:18px;color:#f0b429;margin-bottom:4px}
+.welcome p{font-size:12px;color:#8b949e;margin-bottom:12px}
+.welcome .step{display:flex;align-items:center;gap:8px;text-align:left;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.welcome .step-num{width:24px;height:24px;border-radius:50%;background:rgba(240,180,41,.15);color:#f0b429;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;flex-shrink:0}
+.welcome .step-text{font-size:12px;color:#c9d1d9}
+.welcome .step-text small{display:block;color:#6e7681;font-size:10px;margin-top:1px}
+</style>
+</head>
+<body>
+
+<div class="mock-title">Mock 5: Web 版体验对齐</div>
+<div class="mock-sub">身份引导流程 + 桌面端宽屏利用 + 与小程序体验一致</div>
+
+<div class="wrap">
+
+  <!-- Scene A: First-time web user (mobile) -->
+  <div>
+    <div class="label-tag" style="color:#58a6ff">首次访问 Web 版 (手机)</div>
+    <div class="browser browser-mobile">
+      <div class="browser-bar">
+        <span class="browser-dot dot-r"></span><span class="browser-dot dot-y"></span><span class="browser-dot dot-g"></span>
+        <span class="browser-url">yanyun-signup.vercel.app</span>
+      </div>
+      <div class="browser-body">
+        <div class="hdr"><div class="hdr-top"><span class="hdr-title">燕云十六声</span><span class="hdr-sub">十人本</span></div></div>
+
+        <div class="welcome">
+          <h2>开始报名</h2>
+          <p>Web 版和微信小程序数据互通</p>
+
+          <div class="step">
+            <span class="step-num">1</span>
+            <span class="step-text">输入你的游戏角色名<small>这是你在报名表上显示的名字</small></span>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <span class="step-text">选择时段，一键报名<small>每周只能报一个时段</small></span>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <span class="step-text">记住你的恢复码<small>换设备时用恢复码找回身份</small></span>
+          </div>
+        </div>
+
+        <!-- Identity setup -->
+        <div class="id-section">
+          <div class="id-title">设置身份</div>
+          <div class="id-row">
+            <span class="id-label">角色名</span>
+            <input class="id-input" placeholder="你的游戏内角色名" readonly>
+            <span class="id-btn">确认</span>
+          </div>
+        </div>
+
+        <!-- Restore option -->
+        <div class="restore-section">
+          <div class="restore-title">已有小程序账号？</div>
+          <div class="restore-row">
+            <input class="restore-input" placeholder="输入6位恢复码" readonly>
+            <span class="restore-btn">恢复身份</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scene B: Returning web user (mobile) -->
+  <div>
+    <div class="label-tag" style="color:#3fb950">已登录 Web 版 (手机)</div>
+    <div class="browser browser-mobile">
+      <div class="browser-bar">
+        <span class="browser-dot dot-r"></span><span class="browser-dot dot-y"></span><span class="browser-dot dot-g"></span>
+        <span class="browser-url">yanyun-signup.vercel.app</span>
+      </div>
+      <div class="browser-body">
+        <div class="hdr">
+          <div class="hdr-top"><span class="hdr-title">燕云十六声</span><span class="hdr-sub">十人本</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            <span style="font-size:13px;color:#e6edf3;font-weight:600">圣诞节客户反馈</span>
+            <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(56,139,253,.15);color:#79c0ff">输出</span>
+          </div>
+          <div class="id-code" style="margin-top:4px">恢复码: <strong>A45KD5</strong> <span style="font-size:9px;color:#484f58">· 换设备时需要</span></div>
+        </div>
+
+        <div class="slot"><span><span class="slot-time">周一 2:00 PM</span><span class="slot-count">6人</span></span><span class="slot-join">加入</span></div>
+        <div class="slot"><span><span class="slot-time">周一 3:00 PM</span><span class="slot-count">4人</span></span><span class="slot-join">加入</span></div>
+        <div class="slot"><span><span class="slot-time">周一 4:00 PM</span><span class="slot-count">2人</span></span><span class="slot-join">加入</span></div>
+
+        <div style="text-align:center;color:#3fb950;font-size:10px;padding:12px">
+          恢复码始终可见且有解释文案<br>
+          体验与小程序完全一致
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scene C: Desktop wide layout -->
+  <div style="width:100%">
+    <div class="label-tag" style="color:#f0b429">桌面端宽屏布局 (可选方案)</div>
+    <div class="browser browser-desktop" style="margin:0 auto">
+      <div class="browser-bar">
+        <span class="browser-dot dot-r"></span><span class="browser-dot dot-y"></span><span class="browser-dot dot-g"></span>
+        <span class="browser-url">yanyun-signup.vercel.app</span>
+      </div>
+      <div class="browser-body">
+        <div class="hdr">
+          <div class="hdr-top"><span class="hdr-title">燕云十六声</span><span class="hdr-sub">十人本 · 4/11 周六 ~ 4/19 周日</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            <span style="font-size:13px;color:#e6edf3;font-weight:600">圣诞节客户反馈</span>
+            <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(56,139,253,.15);color:#79c0ff">输出</span>
+            <span style="font-size:10px;color:#6e7681;margin-left:auto">恢复码: <strong style="color:#f0b429">A45KD5</strong></span>
+          </div>
+        </div>
+
+        <div class="desktop-layout">
+          <div class="desktop-main">
+            <div class="slot"><span><span class="slot-time">周一 12:00 PM</span><span class="slot-count">0人</span></span><span class="slot-join">加入</span></div>
+            <div class="slot"><span><span class="slot-time">周一 1:00 PM</span><span class="slot-count">3人</span></span><span class="slot-join">加入</span></div>
+            <div class="slot" style="border-color:rgba(240,180,41,.25)"><span><span class="slot-time">周一 2:00 PM</span><span class="slot-count">8人</span><span style="color:#f0b429;font-size:9px;margin-left:4px;font-weight:bold">HOT</span></span><span class="slot-join">加入</span></div>
+            <div class="slot"><span><span class="slot-time">周一 3:00 PM</span><span class="slot-count">4人</span></span><span class="slot-join">加入</span></div>
+            <div class="slot"><span><span class="slot-time">周一 4:00 PM</span><span class="slot-count">2人</span></span><span class="slot-join">加入</span></div>
+            <div class="slot"><span><span class="slot-time">周一 5:00 PM</span><span class="slot-count">0人</span></span><span class="slot-join">加入</span></div>
+          </div>
+          <div class="desktop-side">
+            <div class="side-card">
+              <div class="side-title">&#128202; 今日热度</div>
+              <div style="display:flex;gap:2px;align-items:flex-end;height:40px;margin-bottom:4px">
+                <div style="flex:1;background:#21262d;height:3px;border-radius:2px"></div>
+                <div style="flex:1;background:#238636;height:14px;border-radius:2px"></div>
+                <div style="flex:1;background:#3fb950;height:30px;border-radius:2px"></div>
+                <div style="flex:1;background:#238636;height:18px;border-radius:2px"></div>
+                <div style="flex:1;background:#21262d;height:3px;border-radius:2px"></div>
+                <div style="flex:1;background:#21262d;height:3px;border-radius:2px"></div>
+                <div style="flex:1;background:#f0b429;height:40px;border-radius:2px"></div>
+                <div style="flex:1;background:#238636;height:10px;border-radius:2px"></div>
+              </div>
+            </div>
+            <div class="side-card">
+              <div class="side-title">&#128260; 每周自动</div>
+              <div style="font-size:11px;color:#3fb950;font-weight:600">周一 2:00 PM · 输出</div>
+              <div style="font-size:9px;color:#6e7681;margin-top:2px">下次检查: 周五</div>
+            </div>
+            <div class="side-card">
+              <div class="side-title">&#128227; 推荐</div>
+              <div style="font-size:11px;color:#e6edf3">6:00 PM 缺2名霖霖</div>
+              <div style="margin-top:6px;background:rgba(63,185,80,.15);color:#7ee787;padding:4px 10px;border-radius:6px;font-size:10px;text-align:center;cursor:pointer">以霖霖加入</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annos" style="width:100%;margin-top:16px">
+    <div class="anno red">
+      <h4>问题：Web 版首次用户无引导</h4>
+      <p>Web 版和小程序共享后端数据，但首次访问 Web 的用户不知道自己的身份是什么、恢复码是干什么的。直接显示 recovery code input 没有任何说明。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：Onboarding 三步引导</h4>
+      <p>首次用户看到简单三步说明 + 设置身份表单 + "已有小程序账号？"恢复入口。3秒内理解产品是做什么的。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：桌面端浪费空间</h4>
+      <p>max-width: 500px 在 1920px 屏幕上只用了 26% 的宽度。没有利用桌面端的优势。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：可选双栏布局</h4>
+      <p>桌面端（>768px）使用双栏：左边是时段列表（主操作区），右边是热度图 + 自动报名 + 推荐卡片（信息侧栏）。把原本纵向堆叠的内容平铺，减少滚动。手机端保持单列不变。</p>
+    </div>
+    <div class="anno blue">
+      <h4>作为"快速版小程序"的定位</h4>
+      <p>既然 Web 版是因为小程序审核慢的替代方案，核心体验应该和小程序完全一致。所有 Mock 1-4 的改进都应同步到 Web 版。桌面端双栏是额外加分项，不是必须的。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
