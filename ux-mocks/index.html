@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UX Mocks - 燕云十六声报名系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;min-height:100vh;padding:48px 16px}
+.container{max-width:680px;margin:0 auto}
+h1{font-size:24px;color:#f0b429;margin-bottom:4px}
+.subtitle{font-size:13px;color:#6e7681;margin-bottom:32px}
+
+.section-label{font-size:11px;color:#484f58;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;margin-top:32px}
+
+.card{display:block;background:#161b22;border:1px solid #21262d;border-radius:12px;padding:16px 20px;margin-bottom:10px;text-decoration:none;color:inherit;transition:border-color .2s,box-shadow .2s}
+.card:hover{border-color:rgba(240,180,41,.4);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.card-title{font-size:15px;font-weight:600;color:#e6edf3;margin-bottom:4px}
+.card-desc{font-size:12px;color:#8b949e;line-height:1.5}
+.card-tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:4px;margin-right:4px;margin-top:6px}
+.tag-p0{background:rgba(248,81,73,.12);color:#f85149}
+.tag-p1{background:rgba(240,180,41,.12);color:#f0b429}
+.tag-p2{background:rgba(56,139,253,.12);color:#58a6ff}
+.tag-new{background:rgba(63,185,80,.12);color:#3fb950}
+.tag-old{background:rgba(255,255,255,.06);color:#6e7681}
+
+.divider{border:none;border-top:1px solid #21262d;margin:24px 0}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>UX Mocks</h1>
+  <div class="subtitle">燕云十六声 · 报名系统 UX 审查设计方案</div>
+
+  <div class="section-label">UX 审查方案 (2026-04)</div>
+
+  <a class="card" href="ux-mock-header.html">
+    <div class="card-title">Mock 1: 精简头部</div>
+    <div class="card-desc">角色名默认只读展示，点"修改"才展开编辑。规则藏到 ? 图标。头部高度减少 ~40%。</div>
+    <span class="card-tag tag-p1">P1 信息过载</span>
+    <span class="card-tag tag-p2">P3 职业选择器重复</span>
+  </a>
+
+  <a class="card" href="ux-mock-entry.html">
+    <div class="card-title">Mock 2: 入口按钮 + 每周自动</div>
+    <div class="card-desc">两个按钮改文案："加入现有队伍" vs "开一个新队"，主次分明。Recurring 已开启时展示为信息卡片。</div>
+    <span class="card-tag tag-p0">P0 按钮混淆</span>
+    <span class="card-tag tag-p1">P1 Recurring 展示</span>
+  </a>
+
+  <a class="card" href="ux-mock-slots.html">
+    <div class="card-title">Mock 3: 时段列表优化</div>
+    <div class="card-desc">Heatmap 改为纯可视化。已过时段折叠为一行。日期 Tab 用绿色 checkmark 标识已报名。</div>
+    <span class="card-tag tag-p2">P2 已过时段</span>
+    <span class="card-tag tag-p2">P2 Heatmap 误触</span>
+    <span class="card-tag tag-p1">P1 标识太弱</span>
+  </a>
+
+  <a class="card" href="ux-mock-safety.html">
+    <div class="card-title">Mock 4: 安全确认 + 操作反馈</div>
+    <div class="card-desc">退出报名增加 Bottom Sheet 确认。报名成功 Toast 展示具体信息。通知栏已订阅后隐藏。</div>
+    <span class="card-tag tag-p0">P0 退出无确认</span>
+    <span class="card-tag tag-p2">P2 反馈不足</span>
+  </a>
+
+  <a class="card" href="ux-mock-web.html">
+    <div class="card-title">Mock 5: Web 版体验对齐</div>
+    <div class="card-desc">首次用户三步引导 + 身份设置。桌面端可选双栏布局。恢复码说明清晰化。</div>
+    <span class="card-tag tag-p2">P2 首次引导</span>
+    <span class="card-tag tag-p2">P2 桌面布局</span>
+  </a>
+
+  <hr class="divider">
+  <div class="section-label">历史版本</div>
+
+  <a class="card" href="ux-mock.html">
+    <div class="card-title">UX Mock v1</div>
+    <div class="card-desc">初始 UI 原型</div>
+    <span class="card-tag tag-old">归档</span>
+  </a>
+
+  <a class="card" href="ux-mock-v2.html">
+    <div class="card-title">UX Mock v2</div>
+    <div class="card-desc">第二版 UI 迭代</div>
+    <span class="card-tag tag-old">归档</span>
+  </a>
+
+  <a class="card" href="ux-mock-v3-multiday.html">
+    <div class="card-title">UX Mock v3 - Multi-Day</div>
+    <div class="card-desc">多日滚动窗口设计方案</div>
+    <span class="card-tag tag-old">归档</span>
+  </a>
+</div>
+</body>
+</html>
