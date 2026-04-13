@@ -594,13 +594,21 @@ async function init() {
   }
 
   var savedNick = localStorage.getItem('yanyun_nick');
+  var savedRole = localStorage.getItem('yanyun_role');
 
-  // rollingDays / weekDates 是纯日期计算，提前算好
+  // Phase 1: 立即渲染骨架（纯日期计算 + localStorage，无网络）
+  state.nickname = savedNick || '访客';
+  state.preferredRole = savedRole || '输出';
   state.rollingDays = getRollingWindowDays();
   state.windowWeekDates = getWindowWeekDates();
   state.selectedDay = 1;
+  state.currentActivityConfig = { id: 'a1b2c3d4', name: '十人本', maxPerCar: 10, startHour: 12, endHour: 22, roles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}] };
+  state.selectedActivity = state.currentActivityConfig.id;
+  buildTimeSlots();
+  state.loading = false;
+  render(); // 骨架渲染：header + 日期tab + 空时段行
 
-  // login + activities + getSlots 全部并行，单次 HTTP 请求
+  // Phase 2: 网络请求，填充真实数据
   var results = await callBatch([
     { name: 'login', data: { nickname: savedNick || undefined } },
     { name: 'api', data: { action: 'getActivities' } },
@@ -652,7 +660,6 @@ async function init() {
   var slotsRes = results[2];
   var allSlots = (slotsRes && slotsRes.success && slotsRes.slots) ? slotsRes.slots : [];
   allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
-  // 按当前活动过滤（batch 未指定 activityType，返回所有）
   var actType = state.selectedActivity;
   state.allSlots = allSlots.filter(function(s) { return !s.activityType || s.activityType === actType; });
 
@@ -676,9 +683,8 @@ async function init() {
   state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
   rebuildSlotsMapForDay();
 
-  state.loading = false;
   console.log('[perf] total init:', Math.round(performance.now() - t0), 'ms');
-  render();
+  render(); // 填充真实数据
   if (anchor) setTimeout(scrollToAnchorSlot, 100);
 }
 
@@ -1374,7 +1380,6 @@ function getRecommendation() {
 // ===== 渲染 =====
 function render() {
   var s = state;
-  if (s.loading) { document.getElementById('app').innerHTML = '<div class="loading">加载中...</div>'; return; }
 
   // PDT 时间用于判断已过日期/时段
   var pdtNow = getPDTNow();
