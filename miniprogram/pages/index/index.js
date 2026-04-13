@@ -150,23 +150,38 @@ Page({
 
   init: async function () {
     wx.showLoading({ title: '加载中...' });
+    var t0 = Date.now();
     try {
-      var res = await wx.cloud.callFunction({ name: 'login' });
+      // login + loadActivities 并行（无依赖）
+      var results = await Promise.all([
+        wx.cloud.callFunction({ name: 'login' }),
+        wx.cloud.callFunction({ name: 'api', data: { action: 'getActivities' } })
+      ]);
+      console.log('[perf] login+activities:', Date.now() - t0, 'ms');
+
+      var res = results[0];
       var openid = res.result.openid;
       var nickname = res.result.nickname;
       var recurringHour = res.result.recurringHour;
       var recurringDay = res.result.recurringDay != null ? res.result.recurringDay : (recurringHour != null ? 0 : null);
 
+      // 处理 activities
+      var actRes = results[1];
+      var acts = (actRes.result && actRes.result.success && actRes.result.activities && actRes.result.activities.length > 0)
+        ? actRes.result.activities : null;
+      if (!acts) {
+        acts = [{ id: 'default', name: '百业十人本', maxPerCar: 10, startHour: 12, endHour: 22, roles: [{ name: '输出', color: '#58a6ff' }, { name: '霖霖', color: '#3fb950' }] }];
+      }
+      var selectedId = acts[0].id;
+      var config = acts[0];
+
       var rollingDays = getRollingWindowDays();
       var windowWeekDates = getWindowWeekDates();
 
-      // 默认选中 today（windowIndex 1）
       var defaultSelected = 1;
-
       var f = rollingDays[0];
       var la = rollingDays[rollingDays.length - 1];
       var weekLabel = f.shortDate + ' ' + f.dayName + ' ~ ' + la.shortDate + ' ' + la.dayName;
-      var pdtLabel = '昨天 ~ +7天';
 
       var recurringLocalDisplay = '';
       if (recurringHour != null && recurringDay != null) {
@@ -184,29 +199,28 @@ Page({
         nicknameInput: nickname,
         preferredRole: savedRole,
         weekLabel: weekLabel,
-        pdtLabel: pdtLabel,
+        pdtLabel: '昨天 ~ +7天',
         rollingDays: rollingDays,
         windowWeekDates: windowWeekDates,
         selectedDay: defaultSelected,
         isRecurring: recurringHour != null,
         recurringHour: recurringHour,
         recurringDay: recurringDay,
-        recurringLocalDisplay: recurringLocalDisplay
+        recurringLocalDisplay: recurringLocalDisplay,
+        activities: acts,
+        selectedActivity: selectedId,
+        currentActivityConfig: config
       });
-
-      // Load activities first, then slots
-      await this.loadActivities();
 
       // 分享链接参数: ?act=xxx&day=2026-04-12&hour=14
       var sp = this._shareParams;
-      if (sp.act && this.data.activities.length > 0) {
-        var act = this.data.activities.find(function(a) { return a.id === sp.act; });
+      if (sp.act) {
+        var act = acts.find(function(a) { return a.id === sp.act; });
         if (act) {
           this.setData({ selectedActivity: act.id, currentActivityConfig: act });
         }
       }
       if (sp.day) {
-        var rollingDays = this.data.rollingDays;
         for (var di = 0; di < rollingDays.length; di++) {
           if (rollingDays[di].dayDate === sp.day) {
             this.setData({ selectedDay: rollingDays[di].windowIndex });
@@ -215,7 +229,9 @@ Page({
         }
       }
 
+      var t1 = Date.now();
       await this.loadSlots();
+      console.log('[perf] loadSlots:', Date.now() - t1, 'ms');
 
       if (sp.hour) {
         var expanded = {};
@@ -226,6 +242,7 @@ Page({
       console.error('init failed', err);
       wx.showToast({ title: '加载失败，请重试', icon: 'none' });
     } finally {
+      console.log('[perf] total init:', Date.now() - t0, 'ms');
       wx.hideLoading();
     }
   },
@@ -550,20 +567,15 @@ Page({
     var rollingDays = this.data.rollingDays;
     var activityType = this.data.selectedActivity;
     try {
-      // 每个 weekDate 单独查，兼容新旧 API
-      var allResults = await Promise.all(windowWeekDates.map(function(wd) {
-        return wx.cloud.callFunction({
-          name: 'api',
-          data: { action: 'getSlots', weekDate: wd, activityType: activityType }
-        });
-      }));
+      // 单次查询所有 weekDates（后端支持 weekDates 批量查询）
+      var result = await wx.cloud.callFunction({
+        name: 'api',
+        data: { action: 'getSlots', weekDates: windowWeekDates, activityType: activityType }
+      });
 
       var slots = [];
-      for (var ri = 0; ri < allResults.length; ri++) {
-        var r = allResults[ri];
-        if (r.result && r.result.success && r.result.slots) {
-          slots = slots.concat(r.result.slots);
-        }
+      if (result.result && result.result.success && result.result.slots) {
+        slots = result.result.slots;
       }
       // Backward compat: add dayDate if missing
       for (var i = 0; i < slots.length; i++) {

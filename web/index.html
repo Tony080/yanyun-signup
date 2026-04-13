@@ -586,6 +586,7 @@ var state = {
 
 // ===== 初始化 =====
 async function init() {
+  var t0 = performance.now();
   state.userId = localStorage.getItem('yanyun_uid');
   if (!state.userId) {
     state.userId = 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -594,32 +595,30 @@ async function init() {
 
   var savedNick = localStorage.getItem('yanyun_nick');
 
-  try {
-    var res = await callFunction('login', {
-      userId: state.userId,
-      nickname: savedNick || undefined
-    });
+  // login + loadActivities 并行（无依赖）
+  var loginP = callFunction('login', { userId: state.userId, nickname: savedNick || undefined }).catch(function(e) { console.error('login failed', e); return null; });
+  var actP = callFunction('api', { action: 'getActivities' }).catch(function() { return null; });
+  var results = await Promise.all([loginP, actP]);
+  console.log('[perf] login+activities:', Math.round(performance.now() - t0), 'ms');
+
+  var res = results[0];
+  if (res) {
     state.nickname = res.nickname;
     state.recoveryCode = res.recoveryCode || '';
     state.recurringHour = res.recurringHour;
     state.recurringDay = res.recurringDay != null ? res.recurringDay : (res.recurringHour != null ? 0 : null);
     state.isRecurring = res.recurringHour != null;
     localStorage.setItem('yanyun_nick', state.nickname);
-  } catch (e) {
-    console.error('login failed', e);
+  } else {
     state.nickname = savedNick || '访客' + state.userId.slice(-4);
   }
 
-  // Load activities
-  try {
-    var actRes = await callFunction('api', { action: 'getActivities' });
-    state.activities = (actRes.success && actRes.activities) ? actRes.activities : [];
-  } catch (e) { state.activities = []; }
+  var actRes = results[1];
+  state.activities = (actRes && actRes.success && actRes.activities) ? actRes.activities : [];
   if (state.activities.length > 0) {
     state.selectedActivity = state.activities[0].id;
     state.currentActivityConfig = state.activities[0];
   } else {
-    // fallback
     state.selectedActivity = 'a1b2c3d4';
     state.currentActivityConfig = { id: 'a1b2c3d4', name: '十人本', maxPerCar: 10, startHour: 12, endHour: 22, roles: [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}] };
   }
@@ -645,6 +644,7 @@ async function init() {
 
   await loadSlots();
   state.loading = false;
+  console.log('[perf] total init:', Math.round(performance.now() - t0), 'ms');
   render();
   if (anchor) setTimeout(scrollToAnchorSlot, 100);
 }
@@ -807,17 +807,11 @@ function getMaxPerCar() {
 // ===== 数据加载 =====
 async function loadSlots() {
   try {
-    // 每个 weekDate 单独查，兼容新旧 API
-    var allResults = await Promise.all(state.windowWeekDates.map(function(wd) {
-      return callFunction('api', { action: 'getSlots', weekDate: wd, activityType: state.selectedActivity });
-    }));
-    var allSlots = [];
-    for (var ri = 0; ri < allResults.length; ri++) {
-      var r = allResults[ri];
-      if (r && r.success && r.slots) {
-        allSlots = allSlots.concat(r.slots);
-      }
-    }
+    var t0 = performance.now();
+    // 单次查询所有 weekDates（后端支持 weekDates 批量查询）
+    var r = await callFunction('api', { action: 'getSlots', weekDates: state.windowWeekDates, activityType: state.selectedActivity });
+    var allSlots = (r && r.success && r.slots) ? r.slots : [];
+    console.log('[perf] loadSlots:', Math.round(performance.now() - t0), 'ms');
     allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
     state.allSlots = allSlots;
 
