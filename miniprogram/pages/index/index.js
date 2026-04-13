@@ -113,6 +113,8 @@ Page({
     selectedActivity: '',
     currentActivityConfig: null,
 
+    activityCounts: {},
+
     // Create activity modal
     showCreateActivityModal: false,
     newActivityName: '',
@@ -327,11 +329,16 @@ Page({
     this.setData({
       selectedActivity: id,
       currentActivityConfig: config,
-      loading: true,
       expandedSlots: {}
     });
     this._updatePreferredRoleDisplay(this.data.preferredRole);
-    this.loadSlots();
+    // 本地过滤，不再网络请求
+    if (this._allSlotsRaw) {
+      this._applyActivityFilter(id);
+    } else {
+      this.setData({ loading: true });
+      this.loadSlots();
+    }
   },
 
   // ===== Create activity modal =====
@@ -581,27 +588,26 @@ Page({
     var rollingDays = this.data.rollingDays;
     var activityType = this.data.selectedActivity;
     try {
-      // 单次查询所有 weekDates（后端支持 weekDates 批量查询）
+      // 一次拉所有活动的 slots（不传 activityType），切 tab 免网络
       var result = await wx.cloud.callFunction({
         name: 'api',
-        data: { action: 'getSlots', weekDates: windowWeekDates, activityType: activityType }
+        data: { action: 'getSlots', weekDates: windowWeekDates }
       });
 
-      var slots = [];
+      var allSlotsRaw = [];
       if (result.result && result.result.success && result.result.slots) {
-        slots = result.result.slots;
+        allSlotsRaw = result.result.slots;
       }
-      // Backward compat: add dayDate if missing
-      for (var i = 0; i < slots.length; i++) {
-        if (!slots[i].dayDate) slots[i].dayDate = slots[i].weekDate;
-        var slot = slots[i];
+      // Backward compat: add dayDate if missing + enrich
+      for (var i = 0; i < allSlotsRaw.length; i++) {
+        if (!allSlotsRaw[i].dayDate) allSlotsRaw[i].dayDate = allSlotsRaw[i].weekDate;
+        var slot = allSlotsRaw[i];
         if (slot.leader) {
           var lm = slot.members.find(function(m) { return m.openid === slot.leader; });
           slot.leaderNick = lm ? lm.nickname : '';
         } else {
           slot.leaderNick = '';
         }
-        // Set isLeader and isSpecial flags on each member
         for (var j = 0; j < slot.members.length; j++) {
           var mem = slot.members[j];
           mem.isLeader = !!(slot.leader && mem.openid === slot.leader);
@@ -609,56 +615,78 @@ Page({
         }
       }
 
-      // Compute per-day totalCount and find registrations per weekDate
-      var dayCounts = {};
-      var myRegistrations = {};
-      for (var j = 0; j < slots.length; j++) {
-        var s = slots[j];
-        if (!dayCounts[s.dayDate]) dayCounts[s.dayDate] = 0;
-        dayCounts[s.dayDate] += s.count;
-        // Find my registration per weekDate
-        if (s.members.some(function (m) { return m.openid === openid; })) {
-          var winIdx = -1;
-          for (var k = 0; k < rollingDays.length; k++) {
-            if (rollingDays[k].dayDate === s.dayDate) { winIdx = k; break; }
-          }
-          var regDayParts = (s.dayDate || s.weekDate).split('-');
-          var regDayOfWeek = new Date(+regDayParts[0], +regDayParts[1] - 1, +regDayParts[2]).getDay();
-          myRegistrations[s.weekDate] = {
-            hour: s.hour,
-            carIndex: s.carIndex,
-            slotId: s._id,
-            dayDate: s.dayDate,
-            weekDate: s.weekDate,
-            windowIndex: winIdx >= 0 ? winIdx : -1,
-            localDisplay: pdtToLocal(s.dayDate, s.hour).display,
-            isSundayNewCycle: regDayOfWeek === 0 && s.hour >= 14
-          };
-        }
-      }
-      // Update rollingDays with totalCount
-      var updatedDays = rollingDays.map(function(rd) {
-        return Object.assign({}, rd, { totalCount: dayCounts[rd.dayDate] || 0 });
-      });
-
-      // 当前选中天对应的 weekDate 的报名
-      var selectedDay = this.data.selectedDay;
-      var selectedWeekDate = updatedDays[selectedDay].weekDate;
-      var myRegistration = myRegistrations[selectedWeekDate] || null;
-
-      this.setData({
-        allSlots: slots,
-        myRegistrations: myRegistrations,
-        myRegistration: myRegistration,
-        rollingDays: updatedDays,
-        loading: false,
-        dataReady: true
-      });
-      this.rebuildSlotsMapForDay();
+      this._allSlotsRaw = allSlotsRaw;
+      this._applyActivityFilter(activityType);
     } catch (err) {
       console.error('loadSlots failed', err);
       this.setData({ loading: false });
     }
+  },
+
+  // 从 allSlotsRaw 按 activityType 过滤并更新 UI
+  _applyActivityFilter: function (activityType) {
+    var allSlotsRaw = this._allSlotsRaw || [];
+    var openid = this.data.openid;
+    var rollingDays = this.data.rollingDays;
+
+    var slots = allSlotsRaw.filter(function(s) {
+      return !s.activityType || s.activityType === activityType;
+    });
+
+    // Compute per-day totalCount and find registrations per weekDate
+    var dayCounts = {};
+    var myRegistrations = {};
+    for (var j = 0; j < slots.length; j++) {
+      var s = slots[j];
+      if (!dayCounts[s.dayDate]) dayCounts[s.dayDate] = 0;
+      dayCounts[s.dayDate] += s.count;
+      if (s.members.some(function (m) { return m.openid === openid; })) {
+        var winIdx = -1;
+        for (var k = 0; k < rollingDays.length; k++) {
+          if (rollingDays[k].dayDate === s.dayDate) { winIdx = k; break; }
+        }
+        var regDayParts = (s.dayDate || s.weekDate).split('-');
+        var regDayOfWeek = new Date(+regDayParts[0], +regDayParts[1] - 1, +regDayParts[2]).getDay();
+        myRegistrations[s.weekDate] = {
+          hour: s.hour,
+          carIndex: s.carIndex,
+          slotId: s._id,
+          dayDate: s.dayDate,
+          weekDate: s.weekDate,
+          windowIndex: winIdx >= 0 ? winIdx : -1,
+          localDisplay: pdtToLocal(s.dayDate, s.hour).display,
+          isSundayNewCycle: regDayOfWeek === 0 && s.hour >= 14
+        };
+      }
+    }
+
+    // Compute per-activity total counts for tab badges
+    var activityCounts = {};
+    for (var ai = 0; ai < allSlotsRaw.length; ai++) {
+      var as = allSlotsRaw[ai];
+      var aType = as.activityType || 'default';
+      if (!activityCounts[aType]) activityCounts[aType] = 0;
+      activityCounts[aType] += as.count;
+    }
+
+    var updatedDays = rollingDays.map(function(rd) {
+      return Object.assign({}, rd, { totalCount: dayCounts[rd.dayDate] || 0 });
+    });
+
+    var selectedDay = this.data.selectedDay;
+    var selectedWeekDate = updatedDays[selectedDay].weekDate;
+    var myRegistration = myRegistrations[selectedWeekDate] || null;
+
+    this.setData({
+      allSlots: slots,
+      myRegistrations: myRegistrations,
+      myRegistration: myRegistration,
+      rollingDays: updatedDays,
+      activityCounts: activityCounts,
+      loading: false,
+      dataReady: true
+    });
+    this.rebuildSlotsMapForDay();
   },
 
   rebuildSlotsMapForDay: function () {

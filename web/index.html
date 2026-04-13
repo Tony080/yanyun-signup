@@ -460,6 +460,8 @@ body {
 .activity-bar { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding: 4px 0; }
 .activity-item { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; background: rgba(255,255,255,0.04); color: #8b949e; white-space: nowrap; }
 .activity-item.active { background: #1f2937; color: #e6edf3; border-left: 2px solid #4a9eed; }
+.activity-count { display: inline-block; margin-left: 3px; background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 8px; font-size: 10px; color: #8b949e; }
+.activity-item.active .activity-count { background: rgba(74,158,237,0.2); color: #79c0ff; }
 .activity-add { padding: 6px 14px; color: #3fb950; font-size: 13px; cursor: pointer; white-space: nowrap; }
 
 /* Create activity modal */
@@ -634,6 +636,7 @@ var state = {
   currentActivityConfig: null,
   sidebarCollapsed: false,
   showPastSlots: false,
+  activityCounts: {},
   _editingNickname: false,
   _dataReady: false,
   // create activity modal
@@ -720,32 +723,12 @@ async function init() {
   var anchor = parseAnchor();
   if (anchor) applyAnchor(anchor);
 
-  // 处理 slots（已在 batch 中获取，直接用）
+  // 处理 slots（已在 batch 中获取，直接用 applyActivityFilter）
   var slotsRes = results[2];
-  var allSlots = (slotsRes && slotsRes.success && slotsRes.slots) ? slotsRes.slots : [];
-  allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
-  var actType = state.selectedActivity;
-  state.allSlots = allSlots.filter(function(s) { return !s.activityType || s.activityType === actType; });
-
-  var dayCounts = {};
-  state.myRegistrations = {};
-  state.allSlots.forEach(function(slot) {
-    if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
-    dayCounts[slot.dayDate] += slot.count;
-    if (slot.members.some(function(m) { return m.openid === state.userId; })) {
-      var winIdx = state.rollingDays.findIndex(function(rd) { return rd.dayDate === slot.dayDate; });
-      state.myRegistrations[slot.weekDate] = {
-        hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
-        dayDate: slot.dayDate, weekDate: slot.weekDate,
-        windowIndex: winIdx >= 0 ? winIdx : -1,
-        localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
-      };
-    }
-  });
-  state.rollingDays.forEach(function(rd) { rd.totalCount = dayCounts[rd.dayDate] || 0; });
-  var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
-  state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
-  rebuildSlotsMapForDay();
+  var allSlotsRaw = (slotsRes && slotsRes.success && slotsRes.slots) ? slotsRes.slots : [];
+  allSlotsRaw.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
+  state._allSlotsRaw = allSlotsRaw;
+  applyActivityFilter(state.selectedActivity);
 
   state._dataReady = true;
   console.log('[perf] total init:', Math.round(performance.now() - t0), 'ms');
@@ -924,37 +907,53 @@ function getMaxPerCar() {
 async function loadSlots() {
   try {
     var t0 = performance.now();
-    // 单次查询所有 weekDates（后端支持 weekDates 批量查询）
-    var r = await callFunction('api', { action: 'getSlots', weekDates: state.windowWeekDates, activityType: state.selectedActivity });
-    var allSlots = (r && r.success && r.slots) ? r.slots : [];
+    // 一次拉所有活动的 slots（不传 activityType），切 tab 免网络
+    var r = await callFunction('api', { action: 'getSlots', weekDates: state.windowWeekDates });
+    var allSlotsRaw = (r && r.success && r.slots) ? r.slots : [];
     console.log('[perf] loadSlots:', Math.round(performance.now() - t0), 'ms');
-    allSlots.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
-    state.allSlots = allSlots;
-
-    // 计算每天总人数 + 每个 weekDate 的报名
-    var dayCounts = {};
-    state.myRegistrations = {};
-    allSlots.forEach(function(slot) {
-      if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
-      dayCounts[slot.dayDate] += slot.count;
-      if (slot.members.some(function(m) { return m.openid === state.userId; })) {
-        var winIdx = state.rollingDays.findIndex(function(rd) { return rd.dayDate === slot.dayDate; });
-        state.myRegistrations[slot.weekDate] = {
-          hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
-          dayDate: slot.dayDate, weekDate: slot.weekDate,
-          windowIndex: winIdx >= 0 ? winIdx : -1,
-          localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
-        };
-      }
-    });
-    state.rollingDays.forEach(function(rd) { rd.totalCount = dayCounts[rd.dayDate] || 0; });
-
-    // 当前选中天的 weekDate 对应的报名
-    var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
-    state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
-  
-    rebuildSlotsMapForDay();
+    allSlotsRaw.forEach(function(s) { if (!s.dayDate) s.dayDate = s.weekDate; });
+    state._allSlotsRaw = allSlotsRaw;
+    applyActivityFilter(state.selectedActivity);
   } catch (e) { console.error('loadSlots', e); }
+}
+
+function applyActivityFilter(activityType) {
+  var allSlotsRaw = state._allSlotsRaw || [];
+  var allSlots = allSlotsRaw.filter(function(s) {
+    return !s.activityType || s.activityType === activityType;
+  });
+  state.allSlots = allSlots;
+
+  // 计算每天总人数 + 每个 weekDate 的报名
+  var dayCounts = {};
+  state.myRegistrations = {};
+  allSlots.forEach(function(slot) {
+    if (!dayCounts[slot.dayDate]) dayCounts[slot.dayDate] = 0;
+    dayCounts[slot.dayDate] += slot.count;
+    if (slot.members.some(function(m) { return m.openid === state.userId; })) {
+      var winIdx = state.rollingDays.findIndex(function(rd) { return rd.dayDate === slot.dayDate; });
+      state.myRegistrations[slot.weekDate] = {
+        hour: slot.hour, carIndex: slot.carIndex, slotId: slot._id,
+        dayDate: slot.dayDate, weekDate: slot.weekDate,
+        windowIndex: winIdx >= 0 ? winIdx : -1,
+        localDisplay: pdtToLocal(slot.dayDate, slot.hour).display
+      };
+    }
+  });
+  state.rollingDays.forEach(function(rd) { rd.totalCount = dayCounts[rd.dayDate] || 0; });
+
+  // 每个活动的总人数（用于 tab badge）
+  state.activityCounts = {};
+  allSlotsRaw.forEach(function(s) {
+    var t = s.activityType || 'default';
+    if (!state.activityCounts[t]) state.activityCounts[t] = 0;
+    state.activityCounts[t] += s.count;
+  });
+
+  var selectedWeekDate = state.rollingDays[state.selectedDay].weekDate;
+  state.myRegistration = state.myRegistrations[selectedWeekDate] || null;
+
+  rebuildSlotsMapForDay();
 }
 
 function rebuildSlotsMapForDay() {
@@ -1505,7 +1504,10 @@ function render() {
   html += '<div class="activity-bar">';
   s.activities.forEach(function(act) {
     var cls = act.id === s.selectedActivity ? 'activity-item active' : 'activity-item';
-    html += '<div class="' + cls + '" onclick="window._switchActivity(\'' + esc(act.id) + '\')">' + esc(act.name) + '</div>';
+    var actCount = s.activityCounts && s.activityCounts[act.id] ? s.activityCounts[act.id] : 0;
+    html += '<div class="' + cls + '" onclick="window._switchActivity(\'' + esc(act.id) + '\')">' + esc(act.name);
+    if (actCount > 0) html += ' <span class="activity-count">' + actCount + '</span>';
+    html += '</div>';
   });
   html += '<div class="activity-add" onclick="window._showCreateActivity()">+ 新建</div>';
   html += '</div>';
@@ -1936,11 +1938,16 @@ window._switchActivity = function(id) {
   state.currentActivityConfig = state.activities.find(function(a) { return a.id === id; }) || state.currentActivityConfig;
   state.expandedSlots = {};
   buildTimeSlots();
-  // 更新 URL hash 到当前活动
   var rd = state.rollingDays[state.selectedDay];
   history.replaceState(null, '', '#/' + id + '/' + rd.dayDate);
-  loadSlots().then(function() { render(); });
-  render();
+  // 本地过滤，不再网络请求
+  if (state._allSlotsRaw) {
+    applyActivityFilter(id);
+    render();
+  } else {
+    loadSlots().then(function() { render(); });
+    render();
+  }
 };
 
 window._showCreateActivity = function() {

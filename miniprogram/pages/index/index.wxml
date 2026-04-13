@@ -43,6 +43,7 @@
     <view class="activity-item {{item.id === selectedActivity ? 'active' : ''}}"
           wx:for="{{activities}}" wx:key="id" bindtap="switchActivity" data-id="{{item.id}}">
       {{item.name}}
+      <text class="activity-count" wx:if="{{activityCounts[item.id] > 0}}">{{activityCounts[item.id]}}</text>
     </view>
     <view class="activity-add" bindtap="showCreateActivity">+ 新建</view>
   </scroll-view>

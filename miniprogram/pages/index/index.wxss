@@ -129,6 +129,14 @@
   border-color: rgba(240, 180, 41, 0.4);
   font-weight: 600;
 }
+.activity-count {
+  display: inline-block; margin-left: 6rpx;
+  background: rgba(255,255,255,0.1); padding: 2rpx 10rpx;
+  border-radius: 12rpx; font-size: 20rpx; color: #8b949e;
+}
+.activity-item.active .activity-count {
+  background: rgba(240,180,41,0.2); color: #f0b429;
+}
 
 .activity-add {
   display: inline-block;
