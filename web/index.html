@@ -100,11 +100,46 @@ body {
 .dot-mid { background: #3fb950; }
 .dot-hot { background: #f0b429; }
 
+/* Day tab checkmark */
+.day-tab-check {
+  position: absolute; top: 1px; right: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #3fb950; color: #fff; font-size: 7px;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 12px; text-align: center;
+}
+
+/* Entry button sub text */
+.entry-btn-main { display: block; font-size: 14px; }
+.entry-btn-sub { display: block; font-size: 10px; font-weight: normal; margin-top: 2px; opacity: 0.6; }
+
+/* Recurring status card (ON state) */
+.recurring-card {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(35,134,54,0.1); border: 1px solid rgba(35,134,54,0.25);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; cursor: pointer;
+}
+.recurring-card-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+.recurring-card-icon { font-size: 16px; }
+.recurring-card-info { flex: 1; }
+.recurring-card-main { font-size: 12px; color: #3fb950; font-weight: 600; display: block; }
+.recurring-card-detail { font-size: 10px; color: #6e7681; margin-top: 1px; display: block; }
+.recurring-card-edit { font-size: 11px; color: #f85149; flex-shrink: 0; }
+
+/* Past slots collapse */
+.past-slots-collapse {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; margin-bottom: 6px;
+  border-radius: 8px; background: rgba(255,255,255,0.02);
+  border: 1px dashed #21262d; font-size: 11px; color: #484f58; cursor: pointer;
+}
+.past-slots-collapse:hover { border-color: #30363d; color: #6e7681; }
+
 .heatmap {
   display: flex; gap: 3px; align-items: flex-end; height: 70px;
   margin-bottom: 12px;
 }
-.heatmap-col { flex: 1; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.heatmap-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
 .heatmap-count { font-size: 10px; color: #8b949e; margin-bottom: 2px; }
 .heatmap-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 4px; transition: all 0.2s; }
 .heatmap-bar.tier-empty { background: #21262d; }
@@ -572,6 +607,7 @@ var state = {
   selectedActivity: null,
   currentActivityConfig: null,
   sidebarCollapsed: false,
+  showPastSlots: false,
   // create activity modal
   showCreateActivity: false,
   newActivityName: '',
@@ -946,7 +982,7 @@ function renderSignupModal() {
 
   var isQuick = mode === 'quick';
   var titleEl = document.getElementById('signupTitle');
-  titleEl.textContent = isQuick ? '⚡ 快速加入' : '🚗 创建车队';
+  titleEl.textContent = isQuick ? '⚡ 加入现有队伍' : '+ 开一个新队';
 
   var pdtNow = getPDTNow();
   var todayStr = fmtDate(pdtNow);
@@ -1042,7 +1078,7 @@ function renderSignupModal() {
 
   // Confirm button
   var confirmBtn = document.getElementById('signupConfirmBtn');
-  confirmBtn.textContent = isQuick ? '加入' : '创建车队';
+  confirmBtn.textContent = isQuick ? '加入' : '开新队';
   confirmBtn.className = isQuick ? 'signup-confirm-quick' : 'signup-confirm-create';
 }
 
@@ -1135,8 +1171,10 @@ window._signupSubmit = async function() {
         state.recurringDay = selectedRollingDay.dayOfWeek;
         state.recurringLocalDisplay = pdtToLocal(displayDayDate, displayHour).display;
       }
-      var msg = mode === 'quick' ? '已加入' : '已创建车队';
-      if (displayHour != null) msg += ' ' + pdtToLocal(displayDayDate, displayHour).display;
+      var carInfo = res.carIndex != null ? ' 第' + (res.carIndex + 1) + '车' : '';
+      var msg = (mode === 'quick' ? '已加入 ' : '已创建 ');
+      if (displayHour != null) msg += pdtToLocal(displayDayDate, displayHour).display;
+      msg += carInfo + ' · ' + role;
       if (recurring) msg += '（每周自动）';
       showToast(msg);
       state.proxyList = []; // 清空帮报名列表
@@ -1465,17 +1503,25 @@ function render() {
   // ===== 入口按钮（未报名时）=====
   if (!s.myRegistration && !s.actionLoading) {
     html += '<div class="entry-buttons">';
-    html += '<button class="entry-btn entry-btn-quick" onclick="window._quickJoin()">⚡ 快速加入</button>';
-    html += '<button class="entry-btn entry-btn-create" onclick="window._createTeam()">🚗 创建车队</button>';
+    html += '<button class="entry-btn entry-btn-quick" onclick="window._quickJoin()"><span class="entry-btn-main">⚡ 加入现有队伍</span><span class="entry-btn-sub">自动匹配有空位的车</span></button>';
+    html += '<button class="entry-btn entry-btn-create" onclick="window._createTeam()"><span class="entry-btn-main">+ 开一个新队</span><span class="entry-btn-sub">所有车都满时使用</span></button>';
     html += '</div>';
   }
   // ===== 每周自动 =====
-  html += '<div class="recurring-bar ' + (s.isRecurring ? 'recurring-on' : 'recurring-off') + '" onclick="window._toggleRec()">';
-  html += '<div class="recurring-toggle"><div class="toggle-dot ' + (s.isRecurring ? 'on' : '') + '"><div class="dot-inner"></div></div>';
-  html += '<span class="recurring-label">每周自动报名</span></div>';
-  if (s.isRecurring && s.recurringLocalDisplay) html += '<span class="recurring-hint">' + esc(s.recurringLocalDisplay) + '</span>';
-  if (!s.isRecurring) html += '<span class="recurring-hint-off">关闭</span>';
-  html += '</div>';
+  if (s.isRecurring) {
+    html += '<div class="recurring-card" onclick="window._toggleRec()">';
+    html += '<div class="recurring-card-left"><span class="recurring-card-icon">🔄</span>';
+    html += '<div class="recurring-card-info">';
+    html += '<span class="recurring-card-main">每周自动 · ' + esc(s.recurringLocalDisplay) + ' · ' + esc(s.preferredRole || '输出') + '</span>';
+    html += '<span class="recurring-card-detail">系统每6小时检查并自动报名</span>';
+    html += '</div></div>';
+    html += '<span class="recurring-card-edit">关闭</span></div>';
+  } else {
+    html += '<div class="recurring-bar recurring-off" onclick="window._toggleRec()">';
+    html += '<div class="recurring-toggle"><div class="toggle-dot"><div class="dot-inner"></div></div>';
+    html += '<span class="recurring-label">每周自动报名</span></div>';
+    html += '<span class="recurring-hint-off">关闭</span></div>';
+  }
 
   // ===== 日期 Tab 栏（滚动8天）=====
   html += '<div class="day-tabs" style="overflow-x:auto;white-space:nowrap;display:flex;gap:3px;margin-bottom:10px">';
@@ -1486,7 +1532,8 @@ function render() {
     var isDayPast = rd.dayDate < pdtTodayStr;
     var cls = 'day-tab' + (isActive ? ' active' : '') + (isMyReg && !isActive ? ' has-reg' : '') + (isDayPast ? ' past-day' : '');
     var countColor = rd.totalCount === 0 ? '#484f58' : rd.totalCount >= 20 ? '#f0b429' : '#3fb950';
-    html += '<div class="' + cls + '" style="min-width:52px;flex-shrink:0" onclick="window._selectDay(' + rd.windowIndex + ')">';
+    html += '<div class="' + cls + '" style="min-width:52px;flex-shrink:0;position:relative" onclick="window._selectDay(' + rd.windowIndex + ')">';
+    if (isMyReg) html += '<span class="day-tab-check">✓</span>';
     html += '<span class="day-tab-name">' + esc(rd.dayShort) + '</span>';
     html += '<span class="day-tab-date">' + esc(rd.shortDate) + '</span>';
     html += '<span class="day-tab-count" style="color:' + countColor + '">' + (rd.totalCount > 0 ? rd.totalCount + '人' : '-') + '</span>';
@@ -1502,7 +1549,7 @@ function render() {
     var count = d ? d.totalCount : 0;
     var barH = count === 0 ? 2 : Math.min(count * 4, 60);
     var tier = count === 0 ? 'tier-empty' : count < 10 ? 'tier-low' : count < 20 ? 'tier-mid' : 'tier-hot';
-    html += '<div class="heatmap-col" onclick="window._toggleSlot(' + slot.pdtHour + ')">';
+    html += '<div class="heatmap-col">';
     html += '<span class="heatmap-count">' + count + '</span>';
     html += '<div class="heatmap-bar ' + tier + '" style="height:' + barH + 'px"></div>';
     html += '<span class="heatmap-label">' + esc(slot.short.replace(':00 ', '').replace('AM','a').replace('PM','p')) + '</span>';
@@ -1531,6 +1578,18 @@ function render() {
   var isSelectedDayToday = selectedDayDate === pdtTodayStr;
 
   html += '<div class="section-title">全部时段</div>';
+
+  // Count past slots and add collapse toggle
+  var pastCount = 0;
+  s.timeSlots.forEach(function(sl) {
+    var slPast = isSelectedDayPast || (isSelectedDayToday && sl.pdtHour <= pdtCurrentHour);
+    if (slPast) pastCount++;
+  });
+  if (pastCount > 0) {
+    html += '<div class="past-slots-collapse" onclick="window._togglePastSlots()">';
+    html += '<span>' + (s.showPastSlots ? '▾' : '▸') + '</span> ' + pastCount + '个已过时段</div>';
+  }
+
   s.timeSlots.forEach(function(slot) {
     var data = s.slotsMap[slot.pdtHour];
     var count = data ? data.totalCount : 0;
@@ -1539,6 +1598,9 @@ function render() {
     var allFull = data && data.cars.length > 0 && data.cars.every(function(c) { return c.full; });
     var isHot = count >= 20;
     var isPast = isSelectedDayPast || (isSelectedDayToday && slot.pdtHour <= pdtCurrentHour);
+
+    // Hide past slots when collapsed
+    if (isPast && !s.showPastSlots) return;
 
     // Slot row
     var anchorHighlight = s._anchorSlot === slot.pdtHour && s._anchorDayDate === selectedDayDate;
@@ -1759,6 +1821,12 @@ window.addEventListener('hashchange', function() {
     });
   }
 });
+
+// 已过时段折叠/展开
+window._togglePastSlots = function() {
+  state.showPastSlots = !state.showPastSlots;
+  render();
+};
 
 // 展开/折叠时段
 window._toggleSlot = function(pdtHour) {
