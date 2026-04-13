@@ -21,7 +21,7 @@ body {
   display: inline-block; background: rgba(240,180,41,0.12); color: #f0b429;
   padding: 4px 12px; border-radius: 12px; font-size: 13px; margin-bottom: 4px;
 }
-.pdt-note { font-size: 11px; color: #6e7681; margin-bottom: 12px; }
+.pdt-note { font-size: 11px; color: #6e7681; margin-bottom: 12px; display: none; }
 .nickname-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .nickname-row label { font-size: 13px; color: #8b949e; flex-shrink: 0; }
 .nickname-row input {
@@ -77,10 +77,23 @@ body {
 .role-dot.output.active { background: rgba(56,139,253,0.2); border-color: #58a6ff; }
 .role-dot.linlin { background: rgba(63,185,80,0.1); color: #7ee787; }
 .role-dot.linlin.active { background: rgba(63,185,80,0.2); border-color: #3fb950; }
-.header-rules { font-size: 10px; color: #484f58; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 6px; }
+.header-rules { font-size: 10px; color: #484f58; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 6px; display: none; }
+.header-rules.show { display: block; }
+.rules-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(255,255,255,0.08); color: #6e7681;
+  font-size: 11px; margin-left: auto; cursor: pointer; flex-shrink: 0;
+}
+.nick-display { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
+.nick-display-name { font-size: 14px; color: #e6edf3; font-weight: 600; }
+.nick-display-role { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.nick-display-edit { font-size: 11px; color: #6e7681; text-decoration: underline; margin-left: auto; }
+.cancel-edit-btn { background: none; border: 1px solid #30363d; border-radius: 6px; padding: 5px 10px; color: #6e7681; font-size: 11px; cursor: pointer; }
 
 /* Day tabs */
-.day-tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+.day-tabs { display: flex; gap: 3px; margin-bottom: 10px; scrollbar-width: none; -ms-overflow-style: none; }
+.day-tabs::-webkit-scrollbar { display: none; }
 .day-tab {
   flex: 1; text-align: center; padding: 6px 2px; border-radius: 8px;
   cursor: pointer; border: 1px solid transparent; background: rgba(255,255,255,0.03);
@@ -608,6 +621,7 @@ var state = {
   currentActivityConfig: null,
   sidebarCollapsed: false,
   showPastSlots: false,
+  _editingNickname: false,
   // create activity modal
   showCreateActivity: false,
   newActivityName: '',
@@ -1426,28 +1440,42 @@ function render() {
 
   var html = '';
 
-  // ===== 头部（精简：只保留标题+昵称）=====
-  html += '<div class="header">';
-  html += '<div class="title-row"><span class="title">燕云十六声</span><span class="subtitle">百业十人本报名</span></div>';
-  html += '<div class="week-badge">' + esc(s.weekLabel) + '</div>';
-  html += '<div class="pdt-note">' + esc(s.pdtLabel) + '</div>';
-  html += '<div class="nickname-row"><label>角色名</label>';
-  html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
-  html += '<button class="save-btn" id="saveNickBtn" onclick="window._saveNick()">保存</button>';
-  html += '<div class="role-selector">';
+  // ===== 头部（精简版）=====
   var cfgRoles = (s.currentActivityConfig && s.currentActivityConfig.roles) ? s.currentActivityConfig.roles : [{name:'输出',color:'#58a6ff'},{name:'霖霖',color:'#3fb950'}];
-  cfgRoles.forEach(function(r) {
-    var isActive = s.preferredRole === r.name;
-    var bg = hexToRgba(r.color, isActive ? 0.2 : 0.1);
-    var border = isActive ? r.color : 'transparent';
-    html += '<span class="role-dot" style="background:' + bg + ';color:' + r.color + ';border-color:' + border + '" onclick="window._setPreferredRole(\'' + esc(r.name) + '\')">' + esc(r.name) + '</span>';
-  });
-  html += '</div></div>';
-  html += '<div class="header-rules">每周期限报一个时段 · 10人满开新车 · 时间已转为本地时区</div>';
+  var activeRoleObj = cfgRoles.find(function(r) { return r.name === s.preferredRole; }) || cfgRoles[0];
+
+  html += '<div class="header">';
+  html += '<div class="title-row"><span class="title">燕云十六声</span><span class="subtitle">' + esc((s.currentActivityConfig && s.currentActivityConfig.name) || '百业十人本报名') + '</span>';
+  html += '<span class="rules-icon" onclick="document.querySelector(\'.header-rules\').classList.toggle(\'show\')">?</span></div>';
+  html += '<div class="week-badge">' + esc(s.weekLabel) + '</div>';
+  html += '<div class="header-rules">每周期限报一个时段 · ' + getMaxPerCar() + '人满开新车 · 时间已转为本地时区</div>';
+
+  // 只读展示 vs 编辑模式
+  if (!s._editingNickname) {
+    html += '<div class="nick-display" onclick="window._startEditNick()">';
+    html += '<span class="nick-display-name">' + esc(s.nickname || '未设置角色名') + '</span>';
+    html += '<span class="nick-display-role" style="background:' + hexToRgba(activeRoleObj.color, 0.15) + ';color:' + activeRoleObj.color + '">' + esc(activeRoleObj.name) + '</span>';
+    html += '<span class="nick-display-edit">修改</span>';
+    html += '</div>';
+  } else {
+    html += '<div class="nickname-row"><label>角色名</label>';
+    html += '<input id="nickInput" value="' + esc(s.nickname) + '" maxlength="12" placeholder="输入角色名">';
+    html += '<button class="save-btn show" onclick="window._saveNick()">保存</button>';
+    html += '<button class="cancel-edit-btn" onclick="window._cancelEditNick()">取消</button>';
+    html += '<div class="role-selector">';
+    cfgRoles.forEach(function(r) {
+      var isActive = s.preferredRole === r.name;
+      var bg = hexToRgba(r.color, isActive ? 0.2 : 0.1);
+      var border = isActive ? r.color : 'transparent';
+      html += '<span class="role-dot" style="background:' + bg + ';color:' + r.color + ';border-color:' + border + '" onclick="window._setPreferredRole(\'' + esc(r.name) + '\')">' + esc(r.name) + '</span>';
+    });
+    html += '</div></div>';
+  }
+
   // 恢复码（精简显示）
   html += '<div class="recovery-row">';
   if (s.recoveryCode) {
-    html += '<span class="recovery-label">恢复码：<strong>' + esc(s.recoveryCode) + '</strong></span>';
+    html += '<span class="recovery-label">恢复码：<strong>' + esc(s.recoveryCode) + '</strong> <span style="font-size:9px;color:#484f58">· 换设备时需要</span></span>';
   }
   html += '<button class="recover-btn" onclick="window._recover()">恢复账号</button>';
   html += '</div>';
@@ -1542,6 +1570,8 @@ function render() {
   html += '</div>';
 
   // ===== 时段热度 Heatmap（固定 4px/人）=====
+  var hasAnySlotData = s.timeSlots.some(function(sl) { var d = s.slotsMap[sl.pdtHour]; return d && d.totalCount > 0; });
+  if (hasAnySlotData) {
   html += '<div class="section-title">📊 时段热度</div>';
   html += '<div class="heatmap">';
   s.timeSlots.forEach(function(slot) {
@@ -1556,6 +1586,7 @@ function render() {
     html += '</div>';
   });
   html += '</div>';
+  } // end if hasAnySlotData
 
   // ===== 推荐卡片（未报名时显示）=====
   if (!s.myRegistration) {
@@ -1695,7 +1726,14 @@ function render() {
     html += '</div>';
   });
 
-  // 底部（规则已移到 header）
+  // 全部时段都过了或没有可用时段时的兜底提示
+  var visibleSlotCount = s.timeSlots.filter(function(sl) {
+    var slPast = isSelectedDayPast || (isSelectedDayToday && sl.pdtHour <= pdtCurrentHour);
+    return !slPast || s.showPastSlots;
+  }).length;
+  if (visibleSlotCount === 0 && s.timeSlots.length > 0) {
+    html += '<div class="empty-hint" style="margin-top:8px">今天的时段都过了，试试选择其他日期</div>';
+  }
 
   document.getElementById('app').innerHTML = html;
 
@@ -1716,7 +1754,9 @@ window._createTeam = handleCreateTeam;
 window._leave = handleLeave;
 window._move = handleMove;
 window._removeProxy = handleRemoveProxy;
-window._saveNick = saveNickname;
+window._saveNick = async function() { await saveNickname(); state._editingNickname = false; render(); };
+window._startEditNick = function() { state._editingNickname = true; render(); };
+window._cancelEditNick = function() { state._editingNickname = false; render(); };
 window._toggleRec = toggleRecurring;
 window._recover = handleRecover;
 window._gcal = openGoogleCalendar;
