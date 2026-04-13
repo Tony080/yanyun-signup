@@ -124,9 +124,9 @@
     </view>
   </scroll-view>
 
-  <!-- 时段热度 Heatmap (只读) -->
-  <view class="section-title" wx:if="{{!loading}}">📊 时段热度</view>
-  <view class="heatmap" wx:if="{{!loading}}">
+  <!-- 时段热度 Heatmap (只读，有数据时才显示) -->
+  <view class="section-title" wx:if="{{!loading && hasAnySlotData}}">📊 时段热度</view>
+  <view class="heatmap" wx:if="{{!loading && hasAnySlotData}}">
     <view class="heatmap-col" wx:for="{{heatmapData}}" wx:key="pdtHour">
       <text class="heatmap-count">{{item.count}}</text>
       <view class="heatmap-bar {{item.tier}}" style="height: {{item.barH}}rpx"></view>
@@ -254,6 +254,10 @@
       </view>
       </block>
     </block>
+    <!-- 所有时段都过了的兜底提示 -->
+    <view class="empty-hint" wx:if="{{pastSlotsCount > 0 && pastSlotsCount === timeSlots.length && !showPastSlots}}" style="margin-top:12rpx">
+      <text>今天的时段都过了，试试选择其他日期</text>
+    </view>
   </view>
 
   <!-- 默认名字确认弹窗（简化版） -->

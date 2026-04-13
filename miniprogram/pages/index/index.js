@@ -104,6 +104,7 @@ Page({
     showPastSlots: false,
     pastSlotsCount: 0,
     notifySubscribed: false,
+    hasAnySlotData: false,
     preferredRoleColor: '',
     preferredRoleRgb: '',
 
@@ -830,7 +831,8 @@ Page({
       recurringPendingDisplay: recurringPendingDisplay,
       memberStyles: memberStyles,
       pastSlotsCount: pastSlotsCount,
-      showPastSlots: pastSlotsCount === 0
+      showPastSlots: pastSlotsCount === 0,
+      hasAnySlotData: timeSlots.some(function(sl) { var d = slotsMap[sl.pdtHour]; return d && d.totalCount > 0; })
     });
   },
 
