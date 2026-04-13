@@ -97,6 +97,15 @@ Page({
     nameConfirmTarget: '',
     slotMeta: {},
 
+    // UX improvements
+    editingNickname: false,
+    showRules: false,
+    showPastSlots: false,
+    pastSlotsCount: 0,
+    notifySubscribed: false,
+    preferredRoleColor: '',
+    preferredRoleRgb: '',
+
     // ===== Multi-activity support =====
     activities: [],
     selectedActivity: '',
@@ -212,6 +221,8 @@ Page({
         currentActivityConfig: config
       });
 
+      this._updatePreferredRoleDisplay(savedRole);
+
       // 分享链接参数: ?act=xxx&day=2026-04-12&hour=14
       var sp = this._shareParams;
       if (sp.act) {
@@ -317,6 +328,7 @@ Page({
       loading: true,
       expandedSlots: {}
     });
+    this._updatePreferredRoleDisplay(this.data.preferredRole);
     this.loadSlots();
   },
 
@@ -796,6 +808,14 @@ Page({
       }
     }
 
+    // Count past slots for collapse UI
+    var pastSlotsCount = 0;
+    for (var pi = 0; pi < timeSlots.length; pi++) {
+      if (slotMeta[timeSlots[pi].pdtHour] && slotMeta[timeSlots[pi].pdtHour].isPast) {
+        pastSlotsCount++;
+      }
+    }
+
     this.setData({
       slotsMap: slotsMap,
       timeSlots: timeSlots,
@@ -806,7 +826,9 @@ Page({
       myRegistration: myRegistration,
       recurringPending: recurringPending,
       recurringPendingDisplay: recurringPendingDisplay,
-      memberStyles: memberStyles
+      memberStyles: memberStyles,
+      pastSlotsCount: pastSlotsCount,
+      showPastSlots: pastSlotsCount === 0
     });
   },
 
@@ -856,6 +878,20 @@ Page({
     var role = e.currentTarget.dataset.role;
     this.setData({ preferredRole: role });
     wx.setStorageSync('yanyun_role', role);
+    this._updatePreferredRoleDisplay(role);
+  },
+
+  _updatePreferredRoleDisplay: function (roleName) {
+    var config = this.data.currentActivityConfig;
+    if (!config || !config.roles) return;
+    var match = config.roles.find(function(r) { return r.name === roleName; });
+    if (match) {
+      var rgb = hexToRgb(match.color);
+      this.setData({
+        preferredRoleColor: match.color,
+        preferredRoleRgb: rgb.r + ',' + rgb.g + ',' + rgb.b
+      });
+    }
   },
 
   // ===== 展开/折叠时段 =====
@@ -912,7 +948,7 @@ Page({
         name: 'api',
         data: { action: 'updateNickname', nickname: newName }
       });
-      this.setData({ nickname: newName, nicknameInput: newName });
+      this.setData({ nickname: newName, nicknameInput: newName, editingNickname: false });
       wx.hideLoading();
       wx.showToast({ title: '昵称已更新' });
       this.loadSlots();
@@ -1120,9 +1156,10 @@ Page({
         var displayHour = res.result.hour || pdtHour;
         var displayDayDate = res.result.dayDate || selectedDayDate;
         var localDisplay = displayHour !== null ? pdtToLocal(displayDayDate, displayHour).display : '随缘';
-        var msg = mode === 'quick' ? '已加入 ' + localDisplay : '已创建车队 ' + localDisplay;
+        var carInfo = res.result.carIndex != null ? ' 第' + (res.result.carIndex + 1) + '车' : '';
+        var msg = (mode === 'quick' ? '已加入 ' : '已创建 ') + localDisplay + carInfo + ' · ' + role;
         if (recurring) msg += '（每周自动）';
-        wx.showToast({ title: msg, icon: 'none' });
+        wx.showToast({ title: msg, icon: 'none', duration: 2500 });
 
         if (recurring && displayHour !== null) {
           var recurringDayOfWeek = selectedRollingDay.dayOfWeek;
@@ -1377,9 +1414,11 @@ Page({
 
   subscribeNotify: async function () {
     var tmplId = this._tmplId;
+    var self = this;
     try {
       var res = await wx.requestSubscribeMessage({ tmplIds: [tmplId] });
       if (res[tmplId] === 'accept') {
+        self.setData({ notifySubscribed: true });
         wx.showToast({ title: '订阅成功，开车前30分钟通知你' });
       } else {
         wx.showToast({ title: '需要允许通知才能收到提醒', icon: 'none' });
@@ -1396,6 +1435,26 @@ Page({
     if (h < 12) return h + 'AM';
     if (h === 12) return '12PM';
     return (h - 12) + 'PM';
+  },
+
+  // ===== UX: Header collapse =====
+
+  toggleRules: function () {
+    this.setData({ showRules: !this.data.showRules });
+  },
+
+  startEditNickname: function () {
+    this.setData({ editingNickname: true });
+  },
+
+  cancelEditNickname: function () {
+    this.setData({ editingNickname: false, nicknameInput: this.data.nickname });
+  },
+
+  // ===== UX: Past slots collapse =====
+
+  togglePastSlots: function () {
+    this.setData({ showPastSlots: !this.data.showPastSlots });
   },
 
   // ===== 工具 =====

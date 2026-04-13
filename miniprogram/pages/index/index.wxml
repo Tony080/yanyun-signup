@@ -1,19 +1,32 @@
 <view class="container">
-  <!-- 头部（精简：标题+昵称） -->
+  <!-- 头部（精简版） -->
   <view class="header">
     <view class="title-row">
       <text class="title">燕云十六声</text>
       <text class="subtitle">{{currentActivityConfig.name || '百业十人本报名'}}</text>
+      <view class="rules-icon" bindtap="toggleRules">?</view>
     </view>
     <view class="week-badge">{{weekLabel}}</view>
-    <view class="pdt-note">{{pdtLabel}}</view>
-    <view class="nickname-row">
+    <view class="header-rules" wx:if="{{showRules}}">每周期限报一个时段 · {{currentActivityConfig.maxPerCar || 10}}人满开新车 · 时间已转为本地时区</view>
+
+    <!-- 只读展示模式 -->
+    <view class="nick-display" wx:if="{{!editingNickname}}" bindtap="startEditNickname">
+      <text class="nick-display-name">{{nickname || '未设置角色名'}}</text>
+      <view class="nick-display-role" wx:if="{{preferredRoleColor}}"
+            style="background: rgba({{preferredRoleRgb}},0.15); color: {{preferredRoleColor}}">
+        {{preferredRole}}
+      </view>
+      <text class="nick-display-edit">修改</text>
+    </view>
+    <!-- 编辑模式 -->
+    <view class="nickname-row" wx:if="{{editingNickname}}">
       <text class="label">角色名</text>
       <input class="nickname-input" value="{{nicknameInput}}"
              bindinput="onNicknameInput" bindconfirm="saveNickname"
-             placeholder="输入角色名" maxlength="12" />
+             placeholder="输入角色名" maxlength="12" focus="{{editingNickname}}" />
       <view class="save-btn" bindtap="saveNickname"
             wx:if="{{nicknameInput !== nickname}}">保存</view>
+      <view class="cancel-edit-btn" bindtap="cancelEditNickname">取消</view>
       <view class="role-selector" wx:if="{{currentActivityConfig.roles}}">
         <view class="role-dot {{preferredRole === item.name ? 'active' : ''}}"
               style="background: rgba({{item._r}},{{item._g}},{{item._b}},0.1); color: {{item.color}}; {{preferredRole === item.name ? 'border-color:' + item.color + ';background:rgba(' + item._r + ',' + item._g + ',' + item._b + ',0.2)' : ''}}"
@@ -23,7 +36,6 @@
         </view>
       </view>
     </view>
-    <view class="header-rules">每周期限报一个时段 · {{currentActivityConfig.maxPerCar || 10}}人满开新车 · 时间已转为本地时区</view>
   </view>
 
   <!-- Activity selector bar -->
@@ -67,23 +79,35 @@
   <!-- 入口按钮（未报名时显示） -->
   <view class="entry-buttons" wx:if="{{!myRegistration && !loading}}">
     <view class="entry-btn quick-join-btn" bindtap="openSignupModal" data-mode="quick">
-      ⚡ 快速加入
+      <text class="entry-btn-main">⚡ 加入现有队伍</text>
+      <text class="entry-btn-sub">自动匹配有空位的车</text>
     </view>
     <view class="entry-btn create-team-btn" bindtap="openSignupModal" data-mode="create">
-      🚗 创建车队
+      <text class="entry-btn-main">+ 开一个新队</text>
+      <text class="entry-btn-sub">所有车都满时使用</text>
     </view>
   </view>
 
-  <!-- 每周自动 -->
-  <view class="recurring-bar {{isRecurring ? 'recurring-on' : 'recurring-off'}}">
+  <!-- 每周自动：已开启 = 状态卡片 -->
+  <view class="recurring-card" wx:if="{{isRecurring}}" bindtap="toggleRecurring">
+    <view class="recurring-card-left">
+      <text class="recurring-card-icon">🔄</text>
+      <view class="recurring-card-info">
+        <text class="recurring-card-main">每周自动 · {{recurringLocalDisplay}} · {{preferredRole}}</text>
+        <text class="recurring-card-detail">系统每6小时检查并自动报名</text>
+      </view>
+    </view>
+    <text class="recurring-card-edit">关闭</text>
+  </view>
+  <!-- 每周自动：未开启 = toggle -->
+  <view class="recurring-bar recurring-off" wx:if="{{!isRecurring}}">
     <view class="recurring-toggle" bindtap="toggleRecurring">
-      <view class="toggle-dot {{isRecurring ? 'toggle-on' : ''}}">
+      <view class="toggle-dot">
         <view class="dot-inner"></view>
       </view>
       <text class="recurring-label">每周自动报名</text>
     </view>
-    <text class="recurring-hint" wx:if="{{isRecurring && recurringLocalDisplay}}">{{recurringLocalDisplay}}</text>
-    <text class="recurring-hint-off" wx:if="{{!isRecurring}}">关闭</text>
+    <text class="recurring-hint-off">关闭</text>
   </view>
 
   <!-- 日期选择 Tab Bar (滚动8天) -->
@@ -92,6 +116,7 @@
       <view class="day-tab {{item.windowIndex === selectedDay ? 'active' : ''}} {{myRegistrations[item.weekDate] && myRegistrations[item.weekDate].dayDate === item.dayDate && item.windowIndex !== selectedDay ? 'has-reg' : ''}} {{item.dayDate < pdtTodayStr ? 'past-day' : ''}}"
             wx:for="{{rollingDays}}" wx:key="windowIndex"
             bindtap="selectDay" data-day="{{item.windowIndex}}">
+        <text class="day-tab-check" wx:if="{{myRegistrations[item.weekDate] && myRegistrations[item.weekDate].dayDate === item.dayDate}}">✓</text>
         <text class="day-tab-name">{{item.dayShort}}</text>
         <text class="day-tab-date">{{item.shortDate}}</text>
         <text class="day-tab-count" style="color: {{item.totalCount >= 20 ? '#f0b429' : item.totalCount > 0 ? '#3fb950' : '#484f58'}}">{{item.totalCount > 0 ? item.totalCount + '人' : '-'}}</text>
@@ -99,11 +124,10 @@
     </view>
   </scroll-view>
 
-  <!-- 时段热度 Heatmap -->
+  <!-- 时段热度 Heatmap (只读) -->
   <view class="section-title" wx:if="{{!loading}}">📊 时段热度</view>
   <view class="heatmap" wx:if="{{!loading}}">
-    <view class="heatmap-col" wx:for="{{heatmapData}}" wx:key="pdtHour"
-          bindtap="toggleSlot" data-hour="{{item.pdtHour}}">
+    <view class="heatmap-col" wx:for="{{heatmapData}}" wx:key="pdtHour">
       <text class="heatmap-count">{{item.count}}</text>
       <view class="heatmap-bar {{item.tier}}" style="height: {{item.barH}}rpx"></view>
       <text class="heatmap-label">{{item.label}}</text>
@@ -121,8 +145,8 @@
     </view>
   </view>
 
-  <!-- 通知订阅 -->
-  <view class="notify-bar" bindtap="subscribeNotify">
+  <!-- 通知订阅（未订阅时才显示） -->
+  <view class="notify-bar" bindtap="subscribeNotify" wx:if="{{!notifySubscribed}}">
     <text class="notify-text">开启开车前30分钟提醒</text>
     <text class="notify-arrow">></text>
   </view>
@@ -135,7 +159,15 @@
   <!-- 紧凑时段列表 -->
   <view class="section-title" wx:if="{{!loading}}">全部时段</view>
   <view class="time-slots" wx:if="{{!loading}}">
+    <!-- 已过时段折叠 -->
+    <view class="past-slots-collapse" wx:if="{{pastSlotsCount > 0}}" bindtap="togglePastSlots">
+      <text class="past-slots-chevron">{{showPastSlots ? '▾' : '▸'}}</text>
+      <text class="past-slots-text">{{pastSlotsCount}}个已过时段</text>
+    </view>
+
     <block wx:for="{{timeSlots}}" wx:key="pdtHour" wx:for-item="slot">
+      <!-- 已过时段：折叠时隐藏 -->
+      <block wx:if="{{!slotMeta[slot.pdtHour].isPast || showPastSlots}}">
       <!-- Compact slot row -->
       <view class="slot-row {{slotMeta[slot.pdtHour].isHot ? 'slot-row-hot' : ''}} {{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate ? 'slot-row-current' : ''}} {{expandedSlots[slot.pdtHour] ? 'slot-row-expanded' : ''}} {{slotMeta[slot.pdtHour].isPast ? 'slot-row-past' : ''}}"
             bindtap="toggleSlot" data-hour="{{slot.pdtHour}}">
@@ -219,6 +251,7 @@
           <text>虚位以待</text>
         </view>
       </view>
+      </block>
     </block>
   </view>
 
@@ -243,8 +276,8 @@
     <view class="modal-card" catchtap="preventBubble">
       <!-- Modal title -->
       <view class="modal-title">
-        <text wx:if="{{signupMode === 'quick'}}">⚡ 快速加入</text>
-        <text wx:if="{{signupMode === 'create'}}">🚗 创建车队</text>
+        <text wx:if="{{signupMode === 'quick'}}">⚡ 加入现有队伍</text>
+        <text wx:if="{{signupMode === 'create'}}">+ 开一个新队</text>
       </view>
 
       <!-- Day picker -->
