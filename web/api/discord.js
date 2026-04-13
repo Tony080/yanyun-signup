@@ -4,6 +4,7 @@ const { waitUntil } = require('@vercel/functions');
 const { callCloudFunction } = require('../lib/wxcloud');
 
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
+var WEB_URL = process.env.WEB_URL || 'https://yanyun-signup.vercel.app';
 const PDT_OFFSET = -7;
 var WEEKDAY_NAMES = ['周日','周一','周二','周三','周四','周五','周六'];
 
@@ -869,9 +870,10 @@ async function buildBoardEmbed(activityId) {
         lines.push(memberStrs.join('  '));
       });
 
+      var slotLink = WEB_URL + '#/' + activityId + '/' + dayInfo.dayDate + '/' + hour;
       fields.push({
         name: '📅 ' + dayInfo.dayName + ' ' + dayInfo.shortDate + ' · 🕐 ' + discordTime(dayInfo.dayDate, hour) + ' 本地时间',
-        value: lines.join('\n'), inline: false
+        value: lines.join('\n') + '\n[查看详情](' + slotLink + ')', inline: false
       });
     });
   });

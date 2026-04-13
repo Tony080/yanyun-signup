@@ -148,7 +148,7 @@
           <text class="current-badge-small" wx:if="{{myRegistration && myRegistration.hour === slot.pdtHour && myRegistration.dayDate === rollingDays[selectedDay].dayDate}}">当前</text>
         </view>
         <view class="slot-row-right" catchtap="preventBubble">
-          <!-- Join / Create / Move buttons -->
+          <button class="share-btn-mini" open-type="share" data-hour="{{slot.pdtHour}}">🔗</button>
           <view class="action-btn join-btn" catchtap="handleSlotJoin"
                 data-hour="{{slot.pdtHour}}"
                 wx:if="{{!slotMeta[slot.pdtHour].isPast && !myRegistration && !actionLoading && !slotMeta[slot.pdtHour].allFull}}">

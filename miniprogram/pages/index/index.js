@@ -117,8 +117,31 @@ Page({
     presetColors: ['#58a6ff', '#3fb950', '#f85149', '#a78bfa', '#f0b429', '#e3b341', '#39d2c0', '#db61a2']
   },
 
-  onLoad: function () {
+  onLoad: function (options) {
+    this._shareParams = options || {};
     this.init();
+  },
+
+  onShareAppMessage: function (res) {
+    var rollingDays = this.data.rollingDays;
+    var activityId = this.data.selectedActivity;
+    var config = this.data.currentActivityConfig;
+    var day = rollingDays[this.data.selectedDay];
+    if (!day || !activityId) return {};
+
+    // 从时段按钮触发的分享
+    if (res.from === 'button' && res.target && res.target.dataset.hour != null) {
+      var hour = Number(res.target.dataset.hour);
+      var local = pdtToLocal(day.dayDate, hour);
+      var slotData = this.data.slotsMap[hour];
+      var count = slotData ? slotData.totalCount : 0;
+      var title = (config ? config.name : '报名') + ' · ' + local.display + (count > 0 ? ' · ' + count + '人' : '');
+      return { title: title, path: 'pages/index/index?act=' + activityId + '&day=' + day.dayDate + '&hour=' + hour };
+    }
+
+    // 从菜单触发的分享（当前页面）
+    var title = (config ? config.name : '报名') + ' · ' + day.dayName + ' ' + day.shortDate;
+    return { title: title, path: 'pages/index/index?act=' + activityId + '&day=' + day.dayDate };
   },
 
   onPullDownRefresh: function () {
@@ -173,7 +196,32 @@ Page({
 
       // Load activities first, then slots
       await this.loadActivities();
+
+      // 分享链接参数: ?act=xxx&day=2026-04-12&hour=14
+      var sp = this._shareParams;
+      if (sp.act && this.data.activities.length > 0) {
+        var act = this.data.activities.find(function(a) { return a.id === sp.act; });
+        if (act) {
+          this.setData({ selectedActivity: act.id, currentActivityConfig: act });
+        }
+      }
+      if (sp.day) {
+        var rollingDays = this.data.rollingDays;
+        for (var di = 0; di < rollingDays.length; di++) {
+          if (rollingDays[di].dayDate === sp.day) {
+            this.setData({ selectedDay: rollingDays[di].windowIndex });
+            break;
+          }
+        }
+      }
+
       await this.loadSlots();
+
+      if (sp.hour) {
+        var expanded = {};
+        expanded[parseInt(sp.hour)] = true;
+        this.setData({ expandedSlots: expanded });
+      }
     } catch (err) {
       console.error('init failed', err);
       wx.showToast({ title: '加载失败，请重试', icon: 'none' });
