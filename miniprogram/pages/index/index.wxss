@@ -224,7 +224,8 @@
 .slot-row-past-tag { font-size: 20rpx; color: #484f58; margin-left: 6rpx; }
 .current-badge-small { background: rgba(240,180,41,0.12); color: #f0b429; padding: 4rpx 14rpx; border-radius: 8rpx; font-size: 20rpx; }
 .slot-row-right { flex-shrink: 0; display: flex; align-items: center; gap: 6rpx; }
-.share-btn-mini { background: none; border: none; color: #484f58; font-size: 28rpx; padding: 0 8rpx; margin: 0; line-height: 1; min-height: 0; }
+.share-btn-mini { background: none !important; border: none !important; color: #484f58; font-size: 24rpx; padding: 0 !important; margin: 0 !important; line-height: 1; min-height: 0 !important; width: auto !important; height: auto !important; display: inline; }
+.share-btn-mini::after { display: none; }
 .slot-cars { padding: 0 8rpx; margin-bottom: 16rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .create-btn {
   background: rgba(240,180,41,0.12); color: #f0b429; border: 1rpx solid rgba(240,180,41,0.3);
