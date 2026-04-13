@@ -595,14 +595,15 @@ async function init() {
 
   var savedNick = localStorage.getItem('yanyun_nick');
 
-  // login + loadActivities 并行（无依赖）
-  var loginP = callFunction('login', { userId: state.userId, nickname: savedNick || undefined }).catch(function(e) { console.error('login failed', e); return null; });
-  var actP = callFunction('api', { action: 'getActivities' }).catch(function() { return null; });
-  var results = await Promise.all([loginP, actP]);
+  // login + loadActivities 单次 HTTP 批量调用
+  var results = await callBatch([
+    { name: 'login', data: { nickname: savedNick || undefined } },
+    { name: 'api', data: { action: 'getActivities' } }
+  ]);
   console.log('[perf] login+activities:', Math.round(performance.now() - t0), 'ms');
 
   var res = results[0];
-  if (res) {
+  if (res && !res.error && res.nickname) {
     state.nickname = res.nickname;
     state.recoveryCode = res.recoveryCode || '';
     state.recurringHour = res.recurringHour;
@@ -662,6 +663,18 @@ async function callFunction(name, data) {
     var err = await res.json().catch(function() { return { error: res.statusText }; });
     throw new Error(err.error || '请求失败');
   }
+  return await res.json();
+}
+
+// 批量调用：一次 HTTP 请求，多个云函数并行
+async function callBatch(calls) {
+  var batch = calls.map(function(c) { var d = c.data || {}; d.userId = state.userId; return { functionName: c.name, data: d }; });
+  var res = await fetch('/api/cloud', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ batch: batch })
+  });
+  if (!res.ok) throw new Error('批量请求失败');
   return await res.json();
 }
 

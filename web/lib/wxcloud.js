@@ -27,7 +27,9 @@ async function getAccessToken() {
 }
 
 async function callCloudFunction(functionName, data) {
+  var t0 = Date.now();
   var token = await getAccessToken();
+  var tToken = Date.now();
   var url = 'https://api.weixin.qq.com/tcb/invokecloudfunction?access_token=' + token + '&env=' + ENV_ID + '&name=' + functionName;
   var res = await fetch(url, {
     method: 'POST',
@@ -35,6 +37,7 @@ async function callCloudFunction(functionName, data) {
     body: JSON.stringify(data || {})
   });
   var wxData = await res.json();
+  console.log('[perf server]', functionName, 'token:', tToken - t0, 'ms, call:', Date.now() - tToken, 'ms');
 
   // token 过期自动重试一次
   if (wxData.errcode === 40001 || wxData.errcode === 42001) {
