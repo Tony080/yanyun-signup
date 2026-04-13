@@ -4,26 +4,31 @@ const SECRET = process.env.WX_SECRET;
 const ENV_ID = process.env.WX_ENV_ID || 'cloud1-0gpxf4r95efa2944';
 
 let tokenCache = { token: '', expiresAt: 0 };
+let _tokenFetching = null;
 
 async function getAccessToken() {
   if (tokenCache.token && Date.now() < tokenCache.expiresAt) return tokenCache.token;
 
-  // 使用 getStableAccessToken，支持多实例并发不互相覆盖
-  var url = 'https://api.weixin.qq.com/cgi-bin/stable_token';
-  var res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'client_credential',
-      appid: APPID,
-      secret: SECRET
-    })
-  });
-  var data = await res.json();
-  if (!data.access_token) throw new Error('access_token failed: ' + (data.errmsg || JSON.stringify(data)));
-  // 缓存稍短一点，避免边界过期
-  tokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 600) * 1000 };
-  return data.access_token;
+  // 并发去重：多个调用共享同一个 token 请求
+  if (!_tokenFetching) {
+    _tokenFetching = (async function() {
+      var url = 'https://api.weixin.qq.com/cgi-bin/stable_token';
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'client_credential',
+          appid: APPID,
+          secret: SECRET
+        })
+      });
+      var data = await res.json();
+      if (!data.access_token) throw new Error('access_token failed: ' + (data.errmsg || JSON.stringify(data)));
+      tokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 600) * 1000 };
+      return data.access_token;
+    })().finally(function() { _tokenFetching = null; });
+  }
+  return _tokenFetching;
 }
 
 async function callCloudFunction(functionName, data) {
