@@ -58,6 +58,7 @@ Page({
     recurringDay: null,
     recurringLocalDisplay: '',
     loading: true,
+    dataReady: false,
     actionLoading: false,
     selectedDay: 0,        // windowIndex into rollingDays
     rollingDays: [],       // 8天滚动窗口
@@ -649,7 +650,8 @@ Page({
         myRegistrations: myRegistrations,
         myRegistration: myRegistration,
         rollingDays: updatedDays,
-        loading: false
+        loading: false,
+        dataReady: true
       });
       this.rebuildSlotsMapForDay();
     } catch (err) {
