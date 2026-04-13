@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 3 - 时段列表优化</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;padding:40px 16px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+.mock-title{font-size:22px;font-weight:bold;color:#f0b429;text-align:center;width:100%;margin-bottom:4px}
+.mock-sub{text-align:center;color:#8b949e;font-size:13px;width:100%;margin-bottom:24px}
+.phone{width:375px;background:#0d1117;border-radius:24px;border:2px solid #333;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.notch{width:100px;height:5px;background:#333;border-radius:3px;margin:0 auto 12px}
+.annos{flex:1;min-width:280px;max-width:700px}
+.anno{padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid}
+.anno h4{font-size:14px;margin-bottom:3px}
+.anno p{font-size:12px;color:#8b949e;line-height:1.5}
+.anno.red{border-color:#f85149;background:rgba(248,81,73,.06)} .anno.red h4{color:#f85149}
+.anno.green{border-color:#3fb950;background:rgba(63,185,80,.06)} .anno.green h4{color:#3fb950}
+.anno.blue{border-color:#58a6ff;background:rgba(88,166,255,.06)} .anno.blue h4{color:#58a6ff}
+.label-before{font-size:11px;color:#f85149;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+.label-after{font-size:11px;color:#3fb950;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+
+/* Day tabs */
+.day-tabs{display:flex;gap:3px;margin-bottom:8px}
+.day-tab{flex:1;text-align:center;padding:6px 2px;border-radius:8px;font-size:11px;border:1px solid transparent;background:rgba(255,255,255,.03);position:relative}
+.day-tab.active{background:rgba(240,180,41,.12);border-color:rgba(240,180,41,.3)}
+.day-tab .dn{font-weight:600;display:block;color:#c9d1d9;font-size:11px}
+.day-tab.active .dn{color:#f0b429}
+.day-tab .dd{font-size:8px;color:#6e7681;display:block}
+.day-tab .dc{font-size:8px;display:block;margin-top:1px}
+/* Old: has-reg just slightly different bg */
+.day-tab.has-reg-old{background:rgba(35,134,54,.08);border-color:rgba(35,134,54,.15)}
+/* New: checkmark indicator */
+.day-tab .check{display:none;position:absolute;top:2px;right:3px;width:10px;height:10px;border-radius:50%;background:#3fb950;color:#fff;font-size:7px;line-height:10px;text-align:center}
+.day-tab.has-reg-new .check{display:block}
+.day-tab.past{opacity:.4}
+
+/* Heatmap */
+.section-title{font-size:11px;color:#8b949e;font-weight:600;margin-bottom:6px}
+.heatmap{display:flex;gap:2px;align-items:flex-end;height:50px;margin-bottom:10px}
+.hm-col{flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.hm-count{font-size:8px;color:#8b949e;margin-bottom:2px}
+.hm-bar{width:100%;border-radius:2px 2px 0 0;min-height:3px}
+.hm-bar.empty{background:#21262d} .hm-bar.low{background:#238636} .hm-bar.mid{background:#3fb950} .hm-bar.hot{background:#f0b429}
+.hm-label{font-size:8px;color:#6e7681;margin-top:2px}
+/* New: read-only heatmap */
+.heatmap-ro .hm-col{cursor:default}
+
+/* Slot rows */
+.slot{display:flex;align-items:center;justify-content:space-between;background:#161b22;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #21262d;font-size:12px}
+.slot-left{display:flex;align-items:center;gap:6px;flex:1}
+.slot-chev{color:#484f58;font-size:10px}
+.slot-time{font-weight:600;color:#e6edf3}
+.slot-count{color:#8b949e}
+.slot-hot{color:#f0b429;font-size:9px;font-weight:bold}
+.slot-past{opacity:.4}
+.slot-past .slot-time{color:#484f58}
+.slot-past-tag{font-size:9px;color:#484f58}
+.slot-join{background:rgba(35,134,54,.15);color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:6px;padding:4px 12px;font-size:11px;font-weight:bold}
+.slot-share{color:#484f58;font-size:12px;margin-left:4px}
+
+/* New: collapsed past */
+.past-collapse{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,.02);border:1px dashed #21262d;font-size:11px;color:#484f58;cursor:pointer}
+.past-collapse:hover{border-color:#30363d;color:#6e7681}
+</style>
+</head>
+<body>
+
+<div class="mock-title">Mock 3: 时段列表优化</div>
+<div class="mock-sub">Heatmap 只读化 + 已过时段折叠 + 日期 Tab 更强的已报名标识</div>
+
+<div class="wrap">
+  <!-- BEFORE -->
+  <div>
+    <div class="label-before">BEFORE</div>
+    <div class="phone">
+      <div class="notch"></div>
+
+      <!-- Day tabs: has-reg barely visible -->
+      <div class="day-tabs">
+        <div class="day-tab past"><span class="dn">六</span><span class="dd">4/11</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab has-reg-old"><span class="dn">日</span><span class="dd">4/12</span><span class="dc" style="color:#3fb950">30人</span></div>
+        <div class="day-tab active"><span class="dn">一</span><span class="dd">4/13</span><span class="dc" style="color:#3fb950">6人</span></div>
+        <div class="day-tab"><span class="dn">二</span><span class="dd">4/14</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab"><span class="dn">三</span><span class="dd">4/15</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab"><span class="dn">四</span><span class="dd">4/16</span><span class="dc" style="color:#484f58">-</span></div>
+      </div>
+
+      <!-- Heatmap: clickable (problem) -->
+      <div class="section-title">&#128202; 时段热度</div>
+      <div class="heatmap">
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">12</span></div>
+        <div class="hm-col"><span class="hm-count">2</span><div class="hm-bar low" style="height:12px"></div><span class="hm-label">1</span></div>
+        <div class="hm-col"><span class="hm-count">6</span><div class="hm-bar mid" style="height:28px"></div><span class="hm-label">2</span></div>
+        <div class="hm-col"><span class="hm-count">3</span><div class="hm-bar low" style="height:16px"></div><span class="hm-label">3</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">4</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">5</span></div>
+        <div class="hm-col"><span class="hm-count">8</span><div class="hm-bar hot" style="height:40px"></div><span class="hm-label">6</span></div>
+        <div class="hm-col"><span class="hm-count">2</span><div class="hm-bar low" style="height:12px"></div><span class="hm-label">7</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">8</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">9</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">10</span></div>
+      </div>
+
+      <!-- Slot list with past slots taking space -->
+      <div class="section-title">全部时段</div>
+      <div class="slot slot-past"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 12:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+      <div class="slot slot-past"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 1:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+      <div class="slot slot-past"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 2:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+      <div class="slot slot-past"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 3:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+      <div class="slot"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 4:00 PM</span><span class="slot-count">6人</span></div><span class="slot-join">加入</span></div>
+      <div class="slot"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">周一 5:00 PM</span><span class="slot-count">3人</span></div><span class="slot-join">加入</span></div>
+
+      <div style="text-align:center;color:#484f58;font-size:10px;padding:8px">需要向下滚动才能看到可用时段</div>
+    </div>
+  </div>
+
+  <!-- AFTER -->
+  <div>
+    <div class="label-after">AFTER</div>
+    <div class="phone">
+      <div class="notch"></div>
+
+      <!-- Day tabs: green checkmark -->
+      <div class="day-tabs">
+        <div class="day-tab past"><span class="dn">六</span><span class="dd">4/11</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab has-reg-new"><span class="check">&#10003;</span><span class="dn">日</span><span class="dd">4/12</span><span class="dc" style="color:#3fb950">30人</span></div>
+        <div class="day-tab active"><span class="dn">一</span><span class="dd">4/13</span><span class="dc" style="color:#3fb950">6人</span></div>
+        <div class="day-tab"><span class="dn">二</span><span class="dd">4/14</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab"><span class="dn">三</span><span class="dd">4/15</span><span class="dc" style="color:#484f58">-</span></div>
+        <div class="day-tab"><span class="dn">四</span><span class="dd">4/16</span><span class="dc" style="color:#484f58">-</span></div>
+      </div>
+
+      <!-- Heatmap: read-only, no cursor pointer -->
+      <div class="section-title">&#128202; 时段热度</div>
+      <div class="heatmap heatmap-ro">
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">12</span></div>
+        <div class="hm-col"><span class="hm-count">2</span><div class="hm-bar low" style="height:12px"></div><span class="hm-label">1</span></div>
+        <div class="hm-col"><span class="hm-count">6</span><div class="hm-bar mid" style="height:28px"></div><span class="hm-label">2</span></div>
+        <div class="hm-col"><span class="hm-count">3</span><div class="hm-bar low" style="height:16px"></div><span class="hm-label">3</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">4</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">5</span></div>
+        <div class="hm-col"><span class="hm-count">8</span><div class="hm-bar hot" style="height:40px"></div><span class="hm-label">6</span></div>
+        <div class="hm-col"><span class="hm-count">2</span><div class="hm-bar low" style="height:12px"></div><span class="hm-label">7</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">8</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">9</span></div>
+        <div class="hm-col"><span class="hm-count">0</span><div class="hm-bar empty" style="height:3px"></div><span class="hm-label">10</span></div>
+      </div>
+
+      <!-- Collapsed past slots -->
+      <div class="section-title">全部时段</div>
+      <div class="past-collapse" onclick="let s=this.nextElementSibling;s.style.display=s.style.display==='none'?'block':'none';this.querySelector('.arrow').textContent=s.style.display==='none'?'&#9656;':'&#9662;'">
+        <span class="arrow">&#9656;</span> 4个已过时段
+      </div>
+      <div style="display:none">
+        <div class="slot slot-past"><div class="slot-left"><span class="slot-time">12:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+        <div class="slot slot-past"><div class="slot-left"><span class="slot-time">1:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+        <div class="slot slot-past"><div class="slot-left"><span class="slot-time">2:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+        <div class="slot slot-past"><div class="slot-left"><span class="slot-time">3:00 PM</span><span class="slot-past-tag">已过</span></div></div>
+      </div>
+
+      <div class="slot" style="border-color:rgba(240,180,41,.25)"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">4:00 PM</span><span class="slot-count">6人</span><span class="slot-hot">HOT</span></div><span class="slot-join">加入</span></div>
+      <div class="slot"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">5:00 PM</span><span class="slot-count">3人</span></div><span class="slot-join">加入</span></div>
+      <div class="slot"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">6:00 PM</span><span class="slot-count">8人</span><span class="slot-hot">HOT</span></div><span class="slot-join">加入</span></div>
+      <div class="slot"><div class="slot-left"><span class="slot-chev">&#9656;</span><span class="slot-time">7:00 PM</span><span class="slot-count">2人</span></div><span class="slot-join">加入</span></div>
+
+      <div style="text-align:center;color:#3fb950;font-size:10px;padding:8px">可用时段直接可见，不用滚动</div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annos" style="width:100%">
+    <div class="anno red">
+      <h4>问题：Heatmap 可点击但太小容易误触</h4>
+      <p>Heatmap 柱子在手机上只有 ~30px 宽，和下方列表功能完全重叠。点 heatmap 还是点列表行？用户困惑。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：Heatmap 改为纯可视化</h4>
+      <p>移除 heatmap 的点击交互，cursor 改为 default。它的价值是"一眼看出热门时段"，不需要承载操作。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：已过时段占据首屏</h4>
+      <p>下午打开时，12PM-3PM 的已过时段仍占 4 行空间（opacity 0.4 但仍有高度），用户要往下滚才能看到可用时段。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：折叠已过时段</h4>
+      <p>默认折叠为一行"4个已过时段"，点击可展开。可用时段直接展示在首屏。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：日期 Tab 已报名标识太弱</h4>
+      <p>has-reg 只有 rgba(35,134,54,0.08) 背景色差，暗色主题下几乎看不出来。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：绿色 &#10003; 角标</h4>
+      <p>右上角加一个小绿色圆点 + checkmark，即使不对比也能一眼看出"这天我报了名"。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

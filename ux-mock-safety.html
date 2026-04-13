@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock 4 - 安全确认 + 反馈</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;padding:40px 16px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;gap:32px;flex-wrap:wrap;justify-content:center}
+.mock-title{font-size:22px;font-weight:bold;color:#f0b429;text-align:center;width:100%;margin-bottom:4px}
+.mock-sub{text-align:center;color:#8b949e;font-size:13px;width:100%;margin-bottom:24px}
+.phone{width:375px;background:#0d1117;border-radius:24px;border:2px solid #333;padding:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);position:relative;overflow:hidden}
+.notch{width:100px;height:5px;background:#333;border-radius:3px;margin:0 auto 12px}
+.annos{flex:1;min-width:280px;max-width:700px}
+.anno{padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid}
+.anno h4{font-size:14px;margin-bottom:3px}
+.anno p{font-size:12px;color:#8b949e;line-height:1.5}
+.anno.red{border-color:#f85149;background:rgba(248,81,73,.06)} .anno.red h4{color:#f85149}
+.anno.green{border-color:#3fb950;background:rgba(63,185,80,.06)} .anno.green h4{color:#3fb950}
+.anno.blue{border-color:#58a6ff;background:rgba(88,166,255,.06)} .anno.blue h4{color:#58a6ff}
+.label-tag{font-size:11px;font-weight:600;text-align:center;margin-bottom:8px;letter-spacing:1px}
+
+/* Status card */
+.status-card{background:rgba(35,134,54,.12);border:1px solid rgba(35,134,54,.3);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.status-main{display:flex;align-items:center;gap:8px}
+.status-icon{font-size:16px}
+.status-info{flex:1}
+.status-line1{color:#3fb950;font-size:13px;font-weight:600}
+.status-line2{font-size:10px;color:#8b949e;margin-top:2px}
+.status-btns{display:flex;gap:6px}
+.leave-btn{background:rgba(248,81,73,.15);color:#f85149;padding:5px 12px;border-radius:6px;font-size:11px;border:1px solid rgba(248,81,73,.3);cursor:pointer}
+
+/* Notify bar */
+.notify-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;margin-bottom:8px;border:1px solid #21262d;background:rgba(255,255,255,.02);cursor:pointer}
+.notify-text{font-size:12px;color:#8b949e}
+.notify-arrow{color:#484f58}
+.notify-done{background:rgba(35,134,54,.06);border-color:rgba(35,134,54,.15)}
+.notify-done .notify-text{color:#3fb950}
+
+/* Bottom sheet overlay */
+.sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;z-index:10}
+.sheet{background:#161b22;border-radius:16px 16px 0 0;padding:20px 16px;width:100%;border-top:1px solid #30363d}
+.sheet-title{font-size:15px;font-weight:bold;color:#e6edf3;margin-bottom:6px}
+.sheet-desc{font-size:12px;color:#8b949e;margin-bottom:16px;line-height:1.5}
+.sheet-desc strong{color:#f85149}
+.sheet-btns{display:flex;gap:8px}
+.sheet-cancel{flex:1;background:rgba(255,255,255,.06);color:#8b949e;border:1px solid #30363d;border-radius:10px;padding:12px;text-align:center;font-size:13px;cursor:pointer}
+.sheet-danger{flex:1;background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3);border-radius:10px;padding:12px;text-align:center;font-size:13px;font-weight:bold;cursor:pointer}
+
+/* Success toast animation */
+.toast-success{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);background:rgba(35,134,54,.9);color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:600;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast-icon{font-size:28px;display:block;margin-bottom:4px}
+
+/* Slot placeholder */
+.slot{display:flex;align-items:center;justify-content:space-between;background:#161b22;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #21262d;font-size:12px}
+.slot-time{font-weight:600;color:#e6edf3}
+.slot-count{color:#8b949e;margin-left:6px}
+.slot-join{background:rgba(35,134,54,.15);color:#3fb950;border:1px solid rgba(35,134,54,.3);border-radius:6px;padding:4px 12px;font-size:11px;font-weight:bold}
+</style>
+</head>
+<body>
+
+<div class="mock-title">Mock 4: 安全确认 + 操作反馈</div>
+<div class="mock-sub">退出确认 bottom sheet + 成功 toast + 通知栏智能状态</div>
+
+<div class="wrap">
+
+  <!-- Scene 1: Leave confirmation -->
+  <div>
+    <div class="label-tag" style="color:#f85149">场景 A: 退出确认</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-card">
+        <div class="status-main">
+          <span class="status-icon">&#10004;</span>
+          <div class="status-info">
+            <div class="status-line1">已报名 周一 2:00 PM</div>
+            <div class="status-line2">第1车 · 输出</div>
+          </div>
+          <div class="status-btns">
+            <span class="leave-btn">退出</span>
+          </div>
+        </div>
+      </div>
+      <div class="slot"><span><span class="slot-time">周一 2:00 PM</span><span class="slot-count">6人</span></span></div>
+      <div class="slot"><span><span class="slot-time">周一 3:00 PM</span><span class="slot-count">4人</span></span></div>
+
+      <!-- Bottom sheet -->
+      <div class="sheet-overlay">
+        <div class="sheet">
+          <div class="sheet-title">确认退出报名？</div>
+          <div class="sheet-desc">你将退出 <strong>周一 2:00 PM 第1车</strong> 的报名。<br>退出后该时段名额会释放给其他人。</div>
+          <div class="sheet-btns">
+            <div class="sheet-cancel">取消</div>
+            <div class="sheet-danger">确认退出</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scene 2: Success feedback -->
+  <div>
+    <div class="label-tag" style="color:#3fb950">场景 B: 报名成功反馈</div>
+    <div class="phone">
+      <div class="notch"></div>
+
+      <!-- Toast overlay -->
+      <div class="toast-success">
+        <span class="toast-icon">&#10004;</span>
+        报名成功！<br>
+        <span style="font-size:11px;font-weight:normal;opacity:.8">周一 2:00 PM · 第1车 · 输出</span>
+      </div>
+
+      <div class="status-card" style="opacity:.3">
+        <div class="status-main">
+          <span class="status-icon">&#10004;</span>
+          <div class="status-info">
+            <div class="status-line1">已报名 周一 2:00 PM</div>
+            <div class="status-line2">第1车 · 输出</div>
+          </div>
+        </div>
+      </div>
+      <div class="slot" style="opacity:.3"><span><span class="slot-time">周一 2:00 PM</span><span class="slot-count">7人</span></span></div>
+    </div>
+  </div>
+
+  <!-- Scene 3: Notification bar states -->
+  <div>
+    <div class="label-tag" style="color:#58a6ff">场景 C: 通知栏状态</div>
+    <div class="phone">
+      <div class="notch"></div>
+
+      <div style="font-size:10px;color:#6e7681;margin-bottom:4px;padding-left:4px">未订阅状态:</div>
+      <div class="notify-bar">
+        <span class="notify-text">&#128276; 开启开车前30分钟提醒</span>
+        <span class="notify-arrow">&gt;</span>
+      </div>
+
+      <div style="font-size:10px;color:#6e7681;margin-bottom:4px;margin-top:12px;padding-left:4px">已订阅状态 (现在始终显示同一个):</div>
+      <div class="notify-bar notify-done">
+        <span class="notify-text">&#10003; 已开启开车前提醒</span>
+        <span class="notify-arrow" style="visibility:hidden">&gt;</span>
+      </div>
+
+      <div style="font-size:10px;color:#6e7681;margin-bottom:4px;margin-top:12px;padding-left:4px">或者：已订阅后直接隐藏该栏</div>
+      <div style="padding:10px;text-align:center;border:1px dashed #21262d;border-radius:8px;font-size:10px;color:#30363d">
+        (这里什么都没有，省出空间)
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotations -->
+  <div class="annos" style="width:100%">
+    <div class="anno red">
+      <h4>问题：退出无二次确认</h4>
+      <p>handleLeave 直接调 API。手机上红色"退出"按钮在状态卡片右边，容易误触。退出后需要重新报名，代价很高。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：Bottom Sheet 确认</h4>
+      <p>用底部弹出 sheet（不是全屏 modal），展示退出的具体信息和后果。红色"确认退出"按钮需要明确意图。比 wx.showModal 更沉浸，也适配 Web 端。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：报名成功反馈不够</h4>
+      <p>现在只有 wx.showToast。状态从"未报名"→"已报名"是突变的，没有过渡，用户可能不确定操作是否成功。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：增强 Toast + 明确信息</h4>
+      <p>成功 Toast 不仅说"成功"，还展示具体信息（哪个时段、第几车、什么职业）。Toast 消失后状态卡片已经就位。</p>
+    </div>
+    <div class="anno red">
+      <h4>问题：通知栏始终占空间</h4>
+      <p>不管是否已订阅，"开启开车前30分钟提醒"始终展示。已订阅用户每次都要视觉忽略。</p>
+    </div>
+    <div class="anno green">
+      <h4>方案：条件展示</h4>
+      <p>未订阅 → 显示引导栏。已订阅 → 改为"已开启提醒 &#10003;"静态展示，或直接隐藏省空间。推荐直接隐藏。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
